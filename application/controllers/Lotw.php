@@ -189,6 +189,10 @@ class Lotw extends CI_Controller {
 	|
 	| This function Uploads to LoTW
 	|
+	| Performance Optimization: Uses batch QSO updates instead of individual
+	| UPDATE queries to reduce database load during hourly uploads.
+	| Individual updates replaced with mark_lotw_sent_batch() for better performance.
+	|
 	*/
 	public function lotw_upload() {
 
@@ -211,14 +215,13 @@ class Lotw extends CI_Controller {
 			$sync_user_id=null;
 		}
 
-		// Array of QSO IDs being Uploaded
-
-		$qso_id_array = array();
-
 		// Build TQ8 Outputs
 		if ($station_profiles->num_rows() >= 1) {
 
 			foreach ($station_profiles->result() as $station_profile) {
+				
+				// Array of QSO IDs being Uploaded for this station profile
+				$qso_id_array = array();
 
 				// Get Certificate Data
 				$this->load->model('LotwCert');
@@ -330,11 +333,24 @@ class Lotw extends CI_Controller {
 
 					echo "Upload Successful - ".$filename_for_saving."<br>";
 
-					$this->LotwCert->last_upload($data['lotw_cert_info']->lotw_cert_id);
+					// Use transaction for data consistency
+					$this->db->trans_begin();
 
-					// Mark QSOs as Sent
-					foreach ($qso_id_array as $qso_number) {
-						$this->Logbook_model->mark_lotw_sent($qso_number);
+					try {
+						$this->LotwCert->last_upload($data['lotw_cert_info']->lotw_cert_id);
+
+						// Mark QSOs as Sent (batch update for performance)
+						if (!empty($qso_id_array)) {
+							$affected_rows = $this->Logbook_model->mark_lotw_sent_batch($qso_id_array);
+							if ($this->user_model->authorize(2)) {
+								echo "Marked ".$affected_rows." QSOs as sent to LoTW<br>";
+							}
+						}
+
+						$this->db->trans_commit();
+					} catch (Exception $e) {
+						$this->db->trans_rollback();
+						echo "Database update failed for ".$station_profile->station_callsign.": ".$e->getMessage()."<br>";
 					}
 				}
 
@@ -374,6 +390,31 @@ class Lotw extends CI_Controller {
     	$this->LotwCert->delete_certificate($this->session->userdata('user_id'), $cert_id);
 
     	$this->session->set_flashdata('Success', 'Certificate Deleted.');
+
+    	redirect('/lotw/');
+    }
+
+	/*
+	|--------------------------------------------------------------------------
+	| Function: toggle_archive_cert
+	|--------------------------------------------------------------------------
+	|
+	| Toggles the archive status of a LoTW certificate
+	|
+	*/
+    public function toggle_archive_cert($cert_id) {
+    	$this->load->model('user_model');
+		if(!$this->user_model->authorize(2)) { $this->session->set_flashdata('notice', 'You\'re not allowed to do that!'); redirect('dashboard'); }
+
+    	$this->load->model('LotwCert');
+
+    	$result = $this->LotwCert->toggle_archive_certificate($this->session->userdata('user_id'), $cert_id);
+
+    	if($result['archived']) {
+    		$this->session->set_flashdata('Success', 'Certificate Archived.');
+    	} else {
+    		$this->session->set_flashdata('Success', 'Certificate Unarchived.');
+    	}
 
     	redirect('/lotw/');
     }
@@ -647,9 +688,9 @@ class Lotw extends CI_Controller {
 					continue;
 				}
 
-				// Get credentials for LoTW
-		    	$data['user_lotw_name'] = urlencode($user->user_lotw_name);
-				$data['user_lotw_password'] = urlencode($user->user_lotw_password);
+				// Get credentials for LoTW - use rawurlencode to prevent &amp; issues
+		    	$data['user_lotw_name'] = rawurlencode($user->user_lotw_name);
+				$data['user_lotw_password'] = rawurlencode($user->user_lotw_password);
 
 				$lotw_last_qsl_date = date('Y-m-d', strtotime($this->logbook_model->lotw_last_qsl_date($user->user_id)));
 
@@ -658,15 +699,77 @@ class Lotw extends CI_Controller {
 				$lotw_url .= "login=" . $data['user_lotw_name'];
 				$lotw_url .= "&password=" . $data['user_lotw_password'];
 				$lotw_url .= "&qso_query=1&qso_qsl='yes'&qso_qsldetail='yes'&qso_mydetail='yes'";
+				$lotw_url .= "&qso_qslsince=" . $lotw_last_qsl_date;
 
-				$lotw_url .= "&qso_qslsince=";
-				$lotw_url .= "$lotw_last_qsl_date";
+				// Debug logging
+				log_message('debug', 'LoTW URL being requested: ' . $lotw_url);
 
 				if (! is_writable(dirname($file))) {
 					$result = "Temporary download directory ".dirname($file)." is not writable. Aborting!";
 					continue;
 				}
-				file_put_contents($file, file_get_contents($lotw_url));
+
+				// Replace file_get_contents with cURL for better error handling
+				$ch = curl_init();
+				curl_setopt($ch, CURLOPT_URL, $lotw_url);
+				curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+				curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+				curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 30);
+				curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+				curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+				curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+				curl_setopt($ch, CURLOPT_USERAGENT, 'Cloudlog LoTW Client/1.0');
+				curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+					'Accept: text/plain,*/*',
+					'Accept-Language: en-US,en;q=0.9'
+				));
+
+				$max_retries = 3;
+				$retry_delay = 2; // seconds
+				$response = false;
+				$curl_error = '';
+				$http_code = 0;
+
+				for ($attempt = 1; $attempt <= $max_retries; $attempt++) {
+					$response = curl_exec($ch);
+					$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+					$curl_error = curl_error($ch);
+
+					// If successful or non-network error, break out of retry loop
+					if ($response !== false && empty($curl_error)) {
+						break;
+					}
+
+					// Log retry attempt
+					if ($attempt < $max_retries) {
+						log_message('debug', "LoTW download attempt {$attempt} failed for user ".$data['user_lotw_name'].": " . $curl_error . " - retrying in {$retry_delay} seconds");
+						sleep($retry_delay);
+						// Exponential backoff - increase delay for next retry
+						$retry_delay *= 2;
+					}
+				}
+
+				curl_close($ch);
+
+				// Check for cURL errors after all retries
+				if ($response === false || !empty($curl_error)) {
+					$result = "LoTW download failed for user ".$data['user_lotw_name']." after {$max_retries} attempts: " . $curl_error;
+					log_message('error', 'LoTW cURL error after retries: ' . $curl_error);
+					continue;
+				}
+
+				// Check HTTP response code
+				if ($http_code !== 200) {
+					$result = "LoTW download failed for user ".$data['user_lotw_name'].": HTTP " . $http_code;
+					log_message('error', 'LoTW HTTP error: ' . $http_code);
+					continue;
+				}
+
+				// Save the response to file
+				if (file_put_contents($file, $response) === false) {
+					$result = "Failed to write LoTW response to file for user ".$data['user_lotw_name'];
+					continue;
+				}
 				if (file_get_contents($file, false, null, 0, 39) != "ARRL Logbook of the World Status Report") {
 					$result = "LoTW downloading failed for User ".$data['user_lotw_name']." either due to it being down or incorrect logins.";
 					continue;

@@ -55,6 +55,17 @@ class User_Model extends CI_Model {
 		return $r;
 	}
 
+	// FUNCTION: object get_by_callsign($callsign)
+	// Retrieve a user by callsign (case-insensitive)
+	function get_by_callsign($callsign) {
+
+		$clean_callsign = $this->security->xss_clean($callsign);
+
+		$this->db->where('UPPER(user_callsign)', strtoupper($clean_callsign));
+		$r = $this->db->get($this->config->item('auth_table'));
+		return $r;
+	}
+
 	/*
 	 * Function: check_email_address
 	 *
@@ -158,11 +169,11 @@ class User_Model extends CI_Model {
 				'user_password' => $this->_hash($password),
 				'user_email' => xss_clean($email),
 				'user_type' => xss_clean($type),
-				'user_firstname' => xss_clean($firstname),
-				'user_lastname' => xss_clean($lastname),
-				'user_callsign' => xss_clean($callsign),
-				'user_locator' => xss_clean($locator),
-				'user_timezone' => xss_clean($timezone),
+			'user_firstname' => xss_clean($firstname),
+			'user_lastname' => xss_clean($lastname),
+			'user_callsign' => strtoupper(xss_clean($callsign)),
+			'user_locator' => xss_clean($locator),
+			'user_timezone' => xss_clean($timezone),
 				'user_measurement_base' => xss_clean($measurement),
 				'user_date_format' => xss_clean($user_date_format),
 				'user_stylesheet' => xss_clean($user_stylesheet),
@@ -233,16 +244,16 @@ class User_Model extends CI_Model {
 		if(($this->session->userdata('user_type') == 99) || ($this->session->userdata('user_id') == $fields['id'])) {
 			if($this->exists_by_id($fields['id'])) {
 				$data = array(
-					'user_name' => xss_clean($fields['user_name']),
-					'user_email' => xss_clean($fields['user_email']),
-					'user_callsign' => xss_clean($fields['user_callsign']),
-					'user_locator' => xss_clean($fields['user_locator']),
-					'user_firstname' => xss_clean($fields['user_firstname']),
+				'user_name' => xss_clean($fields['user_name']),
+				'user_email' => xss_clean($fields['user_email']),
+				'user_callsign' => strtoupper(xss_clean($fields['user_callsign'])),
+				'user_locator' => xss_clean($fields['user_locator']),
+				'user_firstname' => xss_clean($fields['user_firstname']),
 					'user_lastname' => xss_clean($fields['user_lastname']),
 					'user_timezone' => xss_clean($fields['user_timezone']),
 					'user_lotw_name' => xss_clean($fields['user_lotw_name']),
 					'user_eqsl_name' => xss_clean($fields['user_eqsl_name']),
-					'user_clublog_name' => xss_clean($fields['user_clublog_name']),
+					'user_clublog_name' => xss_clean($fields['user_clublog_name']), // Must be a valid email address - Clublog no longer accepts callsigns
 					'user_measurement_base' => xss_clean($fields['user_measurement_base']),
 					'user_date_format' => xss_clean($fields['user_date_format']),
 					'user_stylesheet' => xss_clean($fields['user_stylesheet']),

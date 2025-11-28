@@ -158,6 +158,31 @@ if ($this->session->userdata('user_id') != null) {
 <script type="text/javascript" src="<?php echo base_url(); ?>assets/js/buttons.html5.min.js"></script>
 <script type="text/javascript" src="<?php echo base_url(); ?>assets/js/selectize.js"></script>
 
+<?php if ($this->uri->segment(1) == "mostworked") { ?>
+<script>
+$(document).ready(function() {
+    $('#mostworked_table').DataTable({
+        "pageLength": 25,
+        "responsive": true,
+        "order": [[ 0, "asc" ]],
+        "columnDefs": [
+            { "orderable": false, "targets": 0 },
+            { "type": "num", "targets": 2 }
+        ],
+        "language": {
+            url: getDataTablesLanguageUrl()
+        }
+    });
+    
+    // Clear filters button
+    $('#clear_filters').click(function() {
+        $('#mostworked_filter_form')[0].reset();
+        $('#mostworked_filter_form').submit();
+    });
+});
+</script>
+<?php } ?>
+
 <?php if ($this->uri->segment(1) == "station") { ?>
     <script language="javascript" src="<?php echo base_url(); ?>assets/js/HamGridSquare.js"></script>
     <script src="<?php echo base_url(); ?>assets/js/sections/station_locations.js"></script>
@@ -1025,13 +1050,19 @@ if ($this->session->userdata('user_id') != null) {
     <!-- If this is the admin/radio page run the JS -->
     <script type="text/javascript">
         $(document).ready(function() {
-            setInterval(function() {
-                // Get Mode
+            // Load radio status immediately on page load
+            function loadRadioStatus() {
                 $.get('radio/status/', function(result) {
-                    //$('.status').append(result);
-                    $('.status').html(result);
+                    $('#radio-loading').hide();
+                    $('.status').html(result).show();
                 });
-            }, 2000);
+            }
+            
+            // Load immediately
+            loadRadioStatus();
+            
+            // Then refresh every 2 seconds
+            setInterval(loadRadioStatus, 2000);
         });
     </script>
 <?php } ?>
@@ -1206,6 +1237,30 @@ if ($this->session->userdata('user_id') != null) {
     <?php } elseif ($this->session->userdata('isWinkeyEnabled') && $this->session->userdata('isWinkeyWebsocketEnabled')) { ?>
         <script>
             console.log('Winkey Websocket enabled');
+            
+            // Mode detection for WebSocket Winkey
+            document.addEventListener('DOMContentLoaded', function() {
+                const ModeSelected = document.getElementById('mode');
+                
+                function toggleWinkeyVisibility() {
+                    const winkeyElement = document.getElementById('winkey');
+                    if (ModeSelected && winkeyElement) {
+                        if (ModeSelected.value === 'CW') {
+                            winkeyElement.style.display = 'block';
+                        } else {
+                            winkeyElement.style.display = 'none';
+                        }
+                    }
+                }
+                
+                // Check initial mode
+                toggleWinkeyVisibility();
+                
+                // Listen for mode changes
+                if (ModeSelected) {
+                    ModeSelected.addEventListener('change', toggleWinkeyVisibility);
+                }
+            });
         </script>
 
         <script>
@@ -1225,6 +1280,8 @@ if ($this->session->userdata('user_id') != null) {
                     document.getElementById('cw_socket_status').className = 'badge bg-success';
                     document.getElementById('cw_socket_status').innerHTML = `Status: Connected`;
                     logMessage(`Connected to WebSocket server in room: ${chatRoom}`);
+                    // Get initial speed once when connected, no polling
+                    setTimeout(getCwSpeed, 1000);
                 };
 
                 ws.onclose = function() {
@@ -1240,6 +1297,20 @@ if ($this->session->userdata('user_id') != null) {
 
                 ws.onmessage = function(event) {
                     logMessage('Received: ' + event.data);
+                    
+                    // Handle CW speed responses
+                    const message = event.data;
+                    if (message.startsWith('CWSPEED SET:')) {
+                        const match = message.match(/CWSPEED SET: (\d+) WPM/);
+                        if (match) {
+                            updateSpeedDisplay(parseInt(match[1]));
+                        }
+                    } else if (message.startsWith('CWSPEED:')) {
+                        const match = message.match(/CWSPEED: (\d+) WPM/);
+                        if (match) {
+                            updateSpeedDisplay(parseInt(match[1]));
+                        }
+                    }
                 };
             }
 
@@ -1278,11 +1349,14 @@ if ($this->session->userdata('user_id') != null) {
             }
 
             // Support for Enter key in the input field
-            document.getElementById('message').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    sendMessage();
-                }
-            });
+            const messageElement = document.getElementById('message');
+            if (messageElement) {
+                messageElement.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        sendMessage();
+                    }
+                });
+            }
         </script>
 
         <script>
@@ -1414,31 +1488,65 @@ if ($this->session->userdata('user_id') != null) {
                 // Clear the input field
                 document.getElementById('sendText').value = '';
             }
+
+            // CW Speed Control Functions
+            let currentCwSpeed = 20; // Default speed
+
+            function adjustCwSpeed(change) {
+                if (ws === null) {
+                    alert('Please connect to WebSocket first');
+                    return;
+                }
+
+                const newSpeed = Math.max(5, Math.min(99, currentCwSpeed + change));
+                
+                if (newSpeed !== currentCwSpeed) {
+                    const speedMessage = 'CWSPEED:' + newSpeed;
+                    ws.send(speedMessage);
+                    logMessage('Sent: ' + speedMessage);
+                    // Get updated speed after changing it
+                    setTimeout(getCwSpeed, 500);
+                }
+            }
+
+            function getCwSpeed() {
+                if (ws === null) {
+                    return;
+                }
+
+                ws.send('GETCWSPEED');
+            }
+
+            function updateSpeedDisplay(speed) {
+                currentCwSpeed = speed;
+                const speedDisplay = document.getElementById('cwSpeedDisplay');
+                if (speedDisplay) {
+                    speedDisplay.textContent = speed + ' WPM';
+                }
+            }
+
+            // Removed constant polling functions to prevent WebSocket disruption
+            // Speed is now only read on initial connection and after speed changes
+
+            // Message log toggle function
+            function toggleMessageLog() {
+                const logContainer = document.getElementById('messageLogContainer');
+                const toggleButton = document.getElementById('toggleLogButton');
+                
+                if (logContainer.style.display === 'none') {
+                    logContainer.style.display = 'block';
+                    toggleButton.innerHTML = '<i class="fas fa-eye-slash"></i>';
+                    toggleButton.title = 'Hide Message Log';
+                } else {
+                    logContainer.style.display = 'none';
+                    toggleButton.innerHTML = '<i class="fas fa-list"></i>';
+                    toggleButton.title = 'Show Message Log';
+                }
+            }
         </script>
     <?php } ?>
-    <?php if ($this->optionslib->get_option('dxcache_url') != '') { ?>
-        <script type="text/javascript">
-            var dxcluster_provider = '<?php echo base_url(); ?>index.php/dxcluster';
-            $(document).ready(function() {
-                $("#check_cluster").on("click", function() {
-                    $.ajax({
-                        url: dxcluster_provider + "/qrg_lookup/" + $("#frequency").val() / 1000,
-                        cache: false,
-                        dataType: "json"
-                    }).done(
-                        function(dxspot) {
-                            reset_fields();
-                            $("#callsign").val(dxspot.spotted);
-                            $("#callsign").trigger("blur");
-                        }
-                    );
-                });
-            });
-        </script>
-
+    
     <?php
-    }
-
 
     $this->load->model('stations');
     $active_station_id = $this->stations->find_active();
@@ -1783,7 +1891,59 @@ if ($this->session->userdata('user_id') != null) {
             var now = new Date();
             var localTime = now.getTime();
             var utc = localTime + (now.getTimezoneOffset() * 60000);
-            $(el).attr('value', ("0" + now.getUTCDate()).slice(-2) + '-' + ("0" + (now.getUTCMonth() + 1)).slice(-2) + '-' + now.getUTCFullYear());
+            
+            // Get user's date format preference
+            var userDateFormat = '<?php 
+                if ($this->session->userdata('user_date_format')) {
+                    echo $this->session->userdata('user_date_format');
+                } else {
+                    echo $this->config->item('qso_date_format');
+                }
+            ?>';
+            
+            // Format date according to user preference
+            var day = ("0" + now.getUTCDate()).slice(-2);
+            var month = ("0" + (now.getUTCMonth() + 1)).slice(-2);
+            var year2 = now.getUTCFullYear().toString().slice(-2);
+            var year4 = now.getUTCFullYear();
+            
+            var formattedDate;
+            switch(userDateFormat) {
+                case 'd/m/y':
+                    formattedDate = day + '/' + month + '/' + year2;
+                    break;
+                case 'd/m/Y':
+                    formattedDate = day + '/' + month + '/' + year4;
+                    break;
+                case 'm/d/y':
+                    formattedDate = month + '/' + day + '/' + year2;
+                    break;
+                case 'm/d/Y':
+                    formattedDate = month + '/' + day + '/' + year4;
+                    break;
+                case 'd.m.Y':
+                    formattedDate = day + '.' + month + '.' + year4;
+                    break;
+                case 'y/m/d':
+                    formattedDate = year2 + '/' + month + '/' + day;
+                    break;
+                case 'Y-m-d':
+                    formattedDate = year4 + '-' + month + '-' + day;
+                    break;
+                case 'M d, Y':
+                    var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    formattedDate = months[now.getUTCMonth()] + ' ' + now.getUTCDate() + ', ' + year4;
+                    break;
+                case 'M d, y':
+                    var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    formattedDate = months[now.getUTCMonth()] + ' ' + now.getUTCDate() + ', ' + year2;
+                    break;
+                default:
+                    // Fallback to original format if no match
+                    formattedDate = day + '-' + month + '-' + year4;
+            }
+            
+            $(el).attr('value', formattedDate);
         }
     </script>
 
@@ -1846,6 +2006,12 @@ if ($this->session->userdata('user_id') != null) {
             });
             cat2UI($('.mode'), data.mode, false, false, () => {
                 setRst($(".mode").val());
+                // If the data.mode is winkey show the div with id winkey if not hide it
+                if (data.mode === 'CW') {
+                    $('#winkey').show();
+                } else {
+                    $('#winkey').hide();
+                }
             });
             cat2UI($('#sat_name'), data.satname, false, false);
             cat2UI($('#sat_mode'), data.satmode, false, false);
@@ -1953,10 +2119,17 @@ if ($this->session->userdata('user_id') != null) {
 
     <script>
         $(document).ready(function() {
-            // Synchronize the two selects
+            // Load saved radio selection from localStorage
+            var savedRadio = localStorage.getItem("selectedRadio");
+            if (savedRadio !== null && savedRadio !== undefined) {
+                $('.radios').val(savedRadio);
+            }
+
+            // Synchronize the two selects and save to localStorage
             $('.radios').on('change', function() {
                 const selectedValue = $(this).val(); // Get the selected value
                 $('.radios').not(this).val(selectedValue); // Update other selects to match
+                localStorage.setItem("selectedRadio", selectedValue); // Save to localStorage
             });
         });
     </script>

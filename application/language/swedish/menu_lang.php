@@ -32,8 +32,10 @@ $lang['menu_days_with_qsos'] = 'Dagar med QSOs';
 $lang['menu_timeline'] = 'Tidslinje';
 $lang['menu_accumulated_statistics'] = 'Ackumulerad statistik';
 $lang['menu_timeplotter'] = 'Tidplotter';
+$lang['menu_most_worked'] = 'Mest Arbetade';
 $lang['menu_custom_maps'] = 'Anpassade kartor';
 $lang['menu_continents'] = 'Kontinenter';
+$lang['menu_eme_initials'] = 'EME Initials';
 
 $lang['menu_awards'] = 'Awards';
 $lang['menu_cq'] = 'CQ';

@@ -9,10 +9,10 @@ $lang['menu_overview'] = 'Overview';
 $lang['menu_advanced'] = 'Advanced';
 
 $lang['menu_qso'] = 'QSO';
-$lang['menu_live_qso'] = 'Live QSO';
+$lang['menu_live_qso'] = 'General Logging';
 $lang['menu_post_qso'] = 'Post QSO';
 $lang['menu_fast_log_entry'] = "Simple Fast Log Entry";
-$lang['menu_live_contest_logging'] = 'Live Contest Logging';
+$lang['menu_live_contest_logging'] = 'Contest Logging';
 $lang['menu_post_contest_logging'] = 'Post Contest Logging';
 $lang['menu_bandmap'] = 'Bandmap';
 $lang['menu_view_qsl'] = 'View QSL Cards';
@@ -32,8 +32,10 @@ $lang['menu_days_with_qsos'] = 'Days with QSOs';
 $lang['menu_timeline'] = 'Timeline';
 $lang['menu_accumulated_statistics'] = 'Accumulated Statistics';
 $lang['menu_timeplotter'] = 'Timeplotter';
+$lang['menu_most_worked'] = 'Most Worked';
 $lang['menu_custom_maps'] = 'Custom Maps';
 $lang['menu_continents'] = 'Continents';
+$lang['menu_eme_initials'] = 'EME Initials';
 
 $lang['menu_awards'] = 'Awards';
 $lang['menu_cq'] = 'CQ';

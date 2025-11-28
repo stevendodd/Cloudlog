@@ -153,6 +153,48 @@ function qso_edit(id) {
                         }
                     });
 
+                    // Add callsign change handler to update DXCC/location info
+                    $('.modal-content #callsign').on('change blur', function() {
+                        var callsignValue = $(this).val();
+                        if (callsignValue.length >= 3) {
+                            var find_callsign = callsignValue.toUpperCase();
+                            find_callsign = find_callsign.replace(/\//g, "-");
+                            find_callsign = find_callsign.replace('Ø', '0');
+
+                            $.getJSON(base_url + 'index.php/logbook/json/' + find_callsign + '/0/0/0/' + $('.modal-content #stationProfile').val(), function(result) {
+                                if (result.dxcc && result.dxcc.entity !== undefined && result.dxcc.entity !== 'Not Found') {
+                                    // Update country field
+                                    $('.modal-content #country').val(result.dxcc.entity);
+                                    
+                                    // Update DXCC ID
+                                    if (result.dxcc.adif !== undefined) {
+                                        $('.modal-content #dxcc_id').val(result.dxcc.adif);
+                                    }
+                                    
+                                    // Update CQ Zone
+                                    if (result.dxcc.cqz !== undefined) {
+                                        $('.modal-content #cqz').val(result.dxcc.cqz);
+                                    }
+                                    
+                                    // Update ITU Zone
+                                    if (result.dxcc.ituz !== undefined) {
+                                        $('.modal-content #ituz').val(result.dxcc.ituz);
+                                    }
+                                    
+                                    // Update continent
+                                    if (result.dxcc.cont !== undefined) {
+                                        $('.modal-content #continent').val(result.dxcc.cont);
+                                    }
+                                    
+                                    // Update state if available
+                                    if (result.callsign_state && $('.modal-content #input_usa_state_edit').val() == "") {
+                                        $('.modal-content #input_usa_state_edit').val(result.callsign_state).trigger('change');
+                                    }
+                                }
+                            });
+                        }
+                    });
+
                     $('#locator').change(function(){
                         if ($(this).val().length >= 4) {
                             $.ajax({
@@ -297,6 +339,86 @@ function qso_edit(id) {
                             });
                         }
                     });
+
+                    // Populate satellite names datalist for edit dialog
+                    $.getJSON(base_url+"assets/json/satellite_data.json", function( data ) {
+                        var items = [];
+                        $.each( data, function( key, val ) {
+                            items.push('<option value="' + key + '">' + key + '</option>');
+                        });
+                        $('.satellite_names_list_edit').append(items.join( "" ));
+                    });
+
+                    // Handle satellite name change in edit dialog
+                    var selected_sat_edit;
+                    $('#sat_name_edit').on('input', function(){
+                        var optionslist = $('.satellite_names_list_edit')[0].options;
+                        var value = $(this).val();
+                        for (var x=0; x<optionslist.length; x++){
+                            if (optionslist[x].value === value) {
+                                $("#sat_mode_edit").val("");
+                                $('.satellite_modes_list_edit').find('option').remove().end();
+                                selected_sat_edit = value;
+                                
+                                // Get satellite modes from JSON
+                                $.getJSON( base_url+"assets/json/satellite_data.json", function( data ) {
+                                    var sat_modes = [];
+                                    $.each( data, function( key, val ) {
+                                        if (key == value) {
+                                            $.each( val.Modes, function( key1, val2 ) {
+                                                sat_modes.push('<option value="' + key1 + '">' + key1 + '</option>');
+                                            });
+                                        }
+                                    });
+                                    $('.satellite_modes_list_edit').append(sat_modes.join( "" ));
+                                });
+                                break;
+                            }
+                        }
+                    });
+
+                    // Handle satellite mode change in edit dialog to update frequencies and modes
+                    $('#sat_mode_edit').on('input', function(){
+                        var optionslist = $('.satellite_modes_list_edit')[0].options;
+                        var value = $(this).val();
+                        for (var x=0; x<optionslist.length; x++){
+                            if (optionslist[x].value === value) {
+                                var selected_sat_mode_edit = value;
+                                
+                                // Get satellite data from JSON
+                                $.getJSON( base_url+"assets/json/satellite_data.json", function( data ) {
+                                    $.each( data, function( key, val ) {
+                                        if (key == selected_sat_edit) {
+                                            $.each( val.Modes, function( key1, val2 ) {
+                                                if(key1 == selected_sat_mode_edit) {
+                                                    // Update mode - handle inverting transponders
+                                                    if ( (val2[0].Downlink_Mode == "LSB" && val2[0].Uplink_Mode == "USB") || 
+                                                         (val2[0].Downlink_Mode == "USB" && val2[0].Uplink_Mode == "LSB") ) {
+                                                        $("#mode").val("SSB");
+                                                    } else {
+                                                        $("#mode").val(val2[0].Uplink_Mode);
+                                                    }
+                                                    
+                                                    // Update bands based on frequencies
+                                                    $("#band").val(frequencyToBand(val2[0].Uplink_Freq));
+                                                    $("#band_rx").val(frequencyToBand(val2[0].Downlink_Freq));
+                                                    
+                                                    // Update frequencies
+                                                    $("#freq").val(val2[0].Uplink_Freq);
+                                                    $("#freqrx").val(val2[0].Downlink_Freq);
+                                                    
+                                                    // Update propagation mode to SAT
+                                                    $("#prop_mode").val('SAT');
+                                                }
+                                            });
+                                        }
+                                    });
+                                });
+                                break;
+                            }
+                        }
+                    });
+
                     // [eQSL default msg] change value (for qso edit page) //
                     $('.modal-content #stationProfile').change(function() {
                         qso_set_eqsl_qslmsg($('.modal-content #stationProfile').val(),false,'.modal-content');

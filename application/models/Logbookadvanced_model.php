@@ -200,6 +200,13 @@ class Logbookadvanced_model extends CI_Model {
 		}
 
 		$limit = $searchCriteria['qsoresults'];
+		// Ensure limit has a valid value, default to 250 if empty or invalid
+		if (empty($limit) || !is_numeric($limit) || $limit <= 0) {
+			$limit = 250;
+		}
+
+		// Create a version of $where for the inner subquery with proper table alias
+		$whereInner = str_replace('qsos.', 'qsos_inner.', $where);
 
 		$where2 = '';
 
@@ -213,21 +220,28 @@ class Logbookadvanced_model extends CI_Model {
 		}
 
 		$sql = "
-			SELECT *
-			FROM " . $this->config->item('table_name') . " qsos
-			INNER JOIN station_profile ON qsos.station_id=station_profile.station_id
-			LEFT OUTER JOIN dxcc_entities ON qsos.col_dxcc=dxcc_entities.adif
-			LEFT OUTER JOIN lotw_users ON qsos.col_call=lotw_users.callsign
+			SELECT qsos.*, station_profile.*, dxcc_entities.*, lotw_users.callsign, lotw_users.lastupload, x.qslcount
+			FROM (
+				SELECT qsos_inner.COL_PRIMARY_KEY
+				FROM " . $this->config->item('table_name') . " qsos_inner
+				INNER JOIN station_profile sp_inner ON qsos_inner.station_id = sp_inner.station_id
+				WHERE sp_inner.user_id = ?
+				$whereInner
+				ORDER BY qsos_inner.COL_TIME_ON desc, qsos_inner.COL_PRIMARY_KEY desc
+				LIMIT $limit
+			) AS FilteredIDs
+			INNER JOIN " . $this->config->item('table_name') . " qsos ON qsos.COL_PRIMARY_KEY = FilteredIDs.COL_PRIMARY_KEY
+			INNER JOIN station_profile ON qsos.station_id = station_profile.station_id
+			LEFT OUTER JOIN dxcc_entities ON qsos.col_dxcc = dxcc_entities.adif
+			LEFT OUTER JOIN lotw_users ON qsos.col_call = lotw_users.callsign
 			LEFT OUTER JOIN (
 				select count(*) as qslcount, qsoid
 				from qsl_images
 				group by qsoid
 			) x on qsos.COL_PRIMARY_KEY = x.qsoid
-			WHERE station_profile.user_id =  ?
-			$where
+			WHERE 1=1
 			$where2
 			ORDER BY qsos.COL_TIME_ON desc, qsos.COL_PRIMARY_KEY desc
-			LIMIT $limit
 		";
 		$data = $this->db->query($sql, $binding);
 
@@ -296,7 +310,7 @@ class Logbookadvanced_model extends CI_Model {
 					case 4: return 'ORDER BY qsos.COL_MODE' .  $sortorder[1] . ', qsos.COL_SUBMODE ' . $sortorder[1];
 					case 7: return 'ORDER BY qsos.COL_BAND ' . $sortorder[1] . ', qsos.COL_SAT_NAME ' . $sortorder[1];
 					case 16: return 'ORDER BY qsos.COL_COUNTRY ' . $sortorder[1];
-					case 17: return 'ORDER BY qso.COL_STATE ' . $sortorder[1];
+					case 17: return 'ORDER BY qsos.COL_STATE ' . $sortorder[1];
 					case 18: return 'ORDER BY qsos.COL_CQZ ' . $sortorder[1];
 					case 19: return 'ORDER BY qsos.COL_IOTA ' . $sortorder[1];
 					default: return 'ORDER BY qsos.COL_TIME_ON desc';
@@ -311,7 +325,7 @@ class Logbookadvanced_model extends CI_Model {
 					case 4: return 'ORDER BY qsos.COL_MODE' .  $sortorder[1] . ', qsos.COL_SUBMODE ' . $sortorder[1];
 					case 7: return 'ORDER BY qsos.COL_BAND ' . $sortorder[1] . ', qsos.COL_SAT_NAME ' . $sortorder[1];
 					case 15: return 'ORDER BY qsos.COL_COUNTRY ' . $sortorder[1];
-					case 16: return 'ORDER BY qso.COL_STATE ' . $sortorder[1];
+					case 16: return 'ORDER BY qsos.COL_STATE ' . $sortorder[1];
 					case 17: return 'ORDER BY qsos.COL_CQZ ' . $sortorder[1];
 					case 18: return 'ORDER BY qsos.COL_IOTA ' . $sortorder[1];
 					default: return 'ORDER BY qsos.COL_TIME_ON desc';
@@ -326,7 +340,7 @@ class Logbookadvanced_model extends CI_Model {
 					case 4: return 'ORDER BY qsos.COL_MODE' .  $sortorder[1] . ', qsos.COL_SUBMODE ' . $sortorder[1];
 					case 7: return 'ORDER BY qsos.COL_BAND ' . $sortorder[1] . ', qsos.COL_SAT_NAME ' . $sortorder[1];
 					case 14: return 'ORDER BY qsos.COL_COUNTRY ' . $sortorder[1];
-					case 15: return 'ORDER BY qso.COL_STATE ' . $sortorder[1];
+					case 15: return 'ORDER BY qsos.COL_STATE ' . $sortorder[1];
 					case 16: return 'ORDER BY qsos.COL_CQZ ' . $sortorder[1];
 					case 17: return 'ORDER BY qsos.COL_IOTA ' . $sortorder[1];
 					default: return 'ORDER BY qsos.COL_TIME_ON desc';
@@ -378,16 +392,86 @@ class Logbookadvanced_model extends CI_Model {
         }
     }
 
+	public function updateStationLocation($ids, $user_id, $station_id) {
+		$this->load->model('user_model');
+
+		if(!$this->user_model->authorize(2)) {
+			return array('message' => 'Error');
+		} else {
+			// Verify that the station_id belongs to the user
+			$this->load->model('Stations');
+			$stations = $this->Stations->all_of_user($user_id)->result();
+			$valid_station = false;
+			foreach ($stations as $station) {
+				if ($station->station_id == $station_id) {
+					$valid_station = true;
+					break;
+				}
+			}
+
+			if (!$valid_station) {
+				return array('message' => 'Invalid station ID');
+			}
+
+			$data = array(
+				'station_id' => $station_id
+			);
+			$this->db->where_in('COL_PRIMARY_KEY', json_decode($ids, true));
+			$this->db->update($this->config->item('table_name'), $data);
+
+			return array('message' => 'OK');
+		}
+	}
+
+	public function updateSatellite($ids, $user_id, $sat_name, $sat_mode, $uplink_freq, $downlink_freq, $uplink_mode, $downlink_mode) {
+		$this->load->model('user_model');
+
+		if(!$this->user_model->authorize(2)) {
+			return array('message' => 'Error');
+		} else {
+			$this->load->library('frequency');
+			
+			// Calculate bands from frequencies using existing Frequency library
+			$uplink_band = $this->frequency->GetBand($uplink_freq);
+			$downlink_band = $this->frequency->GetBand($downlink_freq);
+			
+			// Determine mode based on uplink and downlink modes
+			$mode = $uplink_mode;
+			if (($uplink_mode == 'USB' && $downlink_mode == 'LSB') || ($uplink_mode == 'LSB' && $downlink_mode == 'USB')) {
+				$mode = 'SSB';
+			}
+
+			$data = array(
+				'COL_SAT_NAME' => $sat_name,
+				'COL_SAT_MODE' => $sat_mode,
+				'COL_FREQ' => $uplink_freq,
+				'COL_FREQ_RX' => $downlink_freq,
+				'COL_BAND' => $uplink_band,
+				'COL_BAND_RX' => $downlink_band,
+				'COL_MODE' => $mode,
+				'COL_PROP_MODE' => 'SAT'
+			);
+			
+			$this->db->where_in('COL_PRIMARY_KEY', json_decode($ids, true));
+			$this->db->update($this->config->item('table_name'), $data);
+
+			return array('message' => 'OK');
+		}
+	}
+
 	public function updateQsoWithCallbookInfo($qsoID, $qso, $callbook) {
 		$updatedData = array();
 		if (!empty($callbook['name']) && empty($qso['COL_NAME'])) {
 			$updatedData['COL_NAME'] = $callbook['name'];
 		}
 		if (!empty($callbook['gridsquare']) && empty($qso['COL_GRIDSQUARE']) && empty($qso['COL_VUCC_GRIDS'] )) {
-			if (strpos(trim($callbook['gridsquare']), ',') === false) {
-				$updatedData['COL_GRIDSQUARE'] = strtoupper(trim($callbook['gridsquare']));
-			} else {
-				$updatedData['COL_VUCC_GRIDS'] = strtoupper(trim($callbook['gridsquare']));
+			// Validate gridsquare before adding - reject obvious invalid/placeholder values
+			if ($this->isValidGridsquare($callbook['gridsquare'])) {
+				if (strpos(trim($callbook['gridsquare']), ',') === false) {
+					$updatedData['COL_GRIDSQUARE'] = strtoupper(trim($callbook['gridsquare']));
+				} else {
+					$updatedData['COL_VUCC_GRIDS'] = strtoupper(trim($callbook['gridsquare']));
+				}
 			}
 		}
 		if (!empty($callbook['city']) && empty($qso['COL_QTH'])) {
@@ -420,6 +504,52 @@ class Logbookadvanced_model extends CI_Model {
 
 		return false;
     }
+
+	/**
+	 * Validate gridsquare to reject obvious invalid/placeholder values
+	 * Returns false for gridsquares like AA00AA, JJ00JJ, etc. which are
+	 * commonly used as placeholders when the actual grid is unknown
+	 */
+	private function isValidGridsquare($gridsquare) {
+		if (empty($gridsquare)) {
+			return false;
+		}
+
+		$gridsquare = strtoupper(trim($gridsquare));
+		
+		// Handle multiple gridsquares (VUCC format)
+		$grids = explode(',', $gridsquare);
+		
+		foreach ($grids as $grid) {
+			$grid = trim($grid);
+			
+			// Must be valid length (4, 6, 8, or 10 characters)
+			$len = strlen($grid);
+			if ($len < 4 || $len > 10 || $len % 2 != 0) {
+				return false;
+			}
+			
+			// Basic format validation
+			if (!preg_match('/^[A-R]{2}[0-9]{2}([A-X]{2})?([0-9]{2})?([A-X]{2})?$/', $grid)) {
+				return false;
+			}
+			
+			// Reject obvious placeholder patterns where field and subfield are identical
+			// e.g., AA00AA, BB11BB, JJ00JJ etc.
+			if ($len >= 6) {
+				$field = substr($grid, 0, 2);      // First 2 chars (e.g., "AA", "JJ")
+				$subfield = substr($grid, 4, 2);   // Chars 5-6 (e.g., "AA", "JJ")
+				
+				// If both field letters are the same AND both subfield letters are the same
+				// AND they match each other, it's likely a placeholder
+				if ($field[0] === $field[1] && $subfield[0] === $subfield[1] && $field[0] === $subfield[0]) {
+					return false;
+				}
+			}
+		}
+		
+		return true;
+	}
 
 	function get_modes() {
 		$CI =& get_instance();

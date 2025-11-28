@@ -32,8 +32,10 @@ $lang['menu_days_with_qsos'] = 'Días con QSOs';
 $lang['menu_timeline'] = 'Línea de Tiempo';
 $lang['menu_accumulated_statistics'] = 'Estadísticas Acumuladas';
 $lang['menu_timeplotter'] = 'Gráfico de Tiempo';
+$lang['menu_most_worked'] = 'Más Trabajado';
 $lang['menu_custom_maps'] = 'Mapas Personalizados';
 $lang['menu_continents'] = 'Continentes';
+$lang['menu_eme_initials'] = 'EME Initials';
 
 $lang['menu_awards'] = 'Diplomas';
 $lang['menu_cq'] = 'CQ';

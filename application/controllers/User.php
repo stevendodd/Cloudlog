@@ -227,6 +227,18 @@ class User extends CI_Controller
 					break;
 				// All okay, return to user screen
 				case OK:
+					// Send welcome email to new user if checkbox is checked
+					if ($this->input->post('send_welcome_email') == '1') {
+						$this->send_welcome_email(
+							$this->input->post('user_email'),
+							$this->input->post('user_name'),
+							$this->input->post('user_password'),
+							$this->input->post('user_firstname'),
+							$this->input->post('user_lastname'),
+							$this->input->post('user_callsign')
+						);
+					}
+					
 					$this->session->set_flashdata('notice', 'User ' . $this->input->post('user_name') . ' added');
 					redirect('user');
 					return;
@@ -310,6 +322,7 @@ class User extends CI_Controller
 		$this->form_validation->set_rules('user_firstname', 'First name', 'required|xss_clean');
 		$this->form_validation->set_rules('user_lastname', 'Last name', 'required|xss_clean');
 		$this->form_validation->set_rules('user_callsign', 'Callsign', 'trim|required|xss_clean');
+		$this->form_validation->set_rules('user_clublog_name', 'Clublog Email', 'callback_check_clublog_email');
 		$this->form_validation->set_rules('user_locator', 'Locator', 'callback_check_locator');
 		$this->form_validation->set_rules('user_timezone', 'Timezone', 'required');
 
@@ -1283,6 +1296,21 @@ class User extends CI_Controller
 		}
 	}
 
+	function check_clublog_email($email)
+	{
+		$email = $this->input->post('user_clublog_name');
+		// Allow empty email (user may not use Clublog)
+		if (empty($email)) return true;
+		
+		// Validate email format
+		if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+			return true;
+		} else {
+			$this->form_validation->set_message('check_clublog_email', 'Clublog username must be a valid email address as Clublog no longer accepts callsigns as usernames.');
+			return false;
+		}
+	}
+
 	function check_locator($grid)
 	{
 		$grid = $this->input->post('user_locator');
@@ -1304,5 +1332,131 @@ class User extends CI_Controller
 			$this->form_validation->set_message('check_locator', 'Please check value for grid locator (' . strtoupper($grid) . ').');
 			return false;
 		}
+	}
+
+	private function send_welcome_email($email, $username, $password, $firstname, $lastname, $callsign) {
+		// Send welcome email to new user with login credentials
+		
+		// Check if email is configured
+		if ($this->optionslib->get_option('emailProtocol') == '') {
+			log_message('info', 'Email not configured - skipping welcome email for new user');
+			return;
+		}
+		
+		// Load email library
+		$this->load->library('email');
+		
+		// Configure SMTP if needed
+		if ($this->optionslib->get_option('emailProtocol') == "smtp") {
+			$config = Array(
+				'protocol' => $this->optionslib->get_option('emailProtocol'),
+				'smtp_crypto' => $this->optionslib->get_option('smtpEncryption'),
+				'smtp_host' => $this->optionslib->get_option('smtpHost'),
+				'smtp_port' => $this->optionslib->get_option('smtpPort'),
+				'smtp_user' => $this->optionslib->get_option('smtpUsername'),
+				'smtp_pass' => $this->optionslib->get_option('smtpPassword'),
+				'crlf' => "\r\n",
+				'newline' => "\r\n"
+			);
+			$this->email->initialize($config);
+		}
+		
+		// Prepare email data
+		$email_data = array(
+			'username' => $username,
+			'password' => $password,
+			'user_firstname' => $firstname,
+			'user_lastname' => $lastname,
+			'callsign' => $callsign,
+			'email' => $email,
+			'base_url' => base_url(),
+		);
+		
+		$message = $this->load->view('email/welcome.php', $email_data, TRUE);
+		
+		$this->email->from($this->optionslib->get_option('emailAddress'), $this->optionslib->get_option('emailSenderName'));
+		$this->email->to($email);
+		$this->email->subject('Welcome to Cloudlog - Your Account Has Been Created');
+		$this->email->message($message);
+		
+		if (!$this->email->send()) {
+			log_message('error', 'Failed to send welcome email to ' . $email . '. Error: ' . $this->email->print_debugger());
+		} else {
+			log_message('info', 'Welcome email sent to ' . $email);
+		}
+	}
+
+	public function resend_welcome_email($user_id) {
+		// Resend welcome email to existing user (without password)
+		$this->load->model('user_model');
+		
+		// Check authorization
+		if (!$this->user_model->authorize(99)) {
+			$this->session->set_flashdata('notice', 'You\'re not allowed to do that!');
+			redirect('dashboard');
+		}
+		
+		// Get user details
+		$user_query = $this->user_model->get_by_id($user_id);
+		if ($user_query->num_rows() == 0) {
+			$this->session->set_flashdata('danger', 'User not found');
+			redirect('user');
+			return;
+		}
+		
+		$user = $user_query->row();
+		
+		// Check if email is configured
+		if ($this->optionslib->get_option('emailProtocol') == '') {
+			$this->session->set_flashdata('danger', 'Email is not configured. Please configure email settings first.');
+			redirect('user');
+			return;
+		}
+		
+		// Load email library
+		$this->load->library('email');
+		
+		// Configure SMTP if needed
+		if ($this->optionslib->get_option('emailProtocol') == "smtp") {
+			$config = Array(
+				'protocol' => $this->optionslib->get_option('emailProtocol'),
+				'smtp_crypto' => $this->optionslib->get_option('smtpEncryption'),
+				'smtp_host' => $this->optionslib->get_option('smtpHost'),
+				'smtp_port' => $this->optionslib->get_option('smtpPort'),
+				'smtp_user' => $this->optionslib->get_option('smtpUsername'),
+				'smtp_pass' => $this->optionslib->get_option('smtpPassword'),
+				'crlf' => "\r\n",
+				'newline' => "\r\n"
+			);
+			$this->email->initialize($config);
+		}
+		
+		// Prepare email data (without password)
+		$email_data = array(
+			'username' => $user->user_name,
+			'user_firstname' => $user->user_firstname,
+			'user_lastname' => $user->user_lastname,
+			'callsign' => $user->user_callsign,
+			'email' => $user->user_email,
+			'base_url' => base_url(),
+		);
+		
+		// Use the reminder template without password
+		$message = $this->load->view('email/welcome_reminder.php', $email_data, TRUE);
+		
+		$this->email->from($this->optionslib->get_option('emailAddress'), $this->optionslib->get_option('emailSenderName'));
+		$this->email->to($user->user_email);
+		$this->email->subject('Cloudlog Account Reminder');
+		$this->email->message($message);
+		
+		if (!$this->email->send()) {
+			log_message('error', 'Failed to resend welcome email to ' . $user->user_email . '. Error: ' . $this->email->print_debugger());
+			$this->session->set_flashdata('danger', 'Failed to send email to ' . $user->user_email);
+		} else {
+			log_message('info', 'Welcome reminder email sent to ' . $user->user_email);
+			$this->session->set_flashdata('success', 'Welcome email sent to ' . $user->user_name . ' (' . $user->user_email . ')');
+		}
+		
+		redirect('user');
 	}
 }
