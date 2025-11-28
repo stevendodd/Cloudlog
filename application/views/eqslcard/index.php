@@ -108,7 +108,7 @@
 				    /* create the physical thumbnail image to its destination */
 				    imagejpeg( $virtual_image, $dest, 60 );
 				 }
-				 echo '<a href="#" onclick="viewEqsl(\''.$qsl->image_file.'\', \''. $qsl->COL_CALL . '\')" class="photo" style="background-image: url(/'.$dest.');"></a>';
+				 echo '<a href="#" onclick="viewEqsl(\''.$qsl->image_file.'\', \''. $qsl->COL_CALL . '\')" class="photo" style="background-image: url('.$dest.');"></a>';
 			 }
 		     }
 		 }
