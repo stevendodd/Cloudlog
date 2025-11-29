@@ -122,7 +122,7 @@
 				    /* create the physical thumbnail image to its destination */
 				    imagejpeg( $virtual_image, $dest, 60 );
 				 }
-				 echo '<a href="#" onclick="viewSstv(\''.$sstvImage->filename.'\', \''. $sstvImage->COL_CALL . '\')" class="photo" style="background-image: url(/'.$dest.');"></a>';
+				 echo '<a href="#" onclick="viewSstv(\''.$sstvImage->filename.'\', \''. $sstvImage->COL_CALL . '\')" class="photo" style="background-image: url('. base_url() . $dest.');"></a>';
 			 }
 		     }
 		 }
