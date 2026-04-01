@@ -1276,10 +1276,162 @@
 					</div>
 				</div>
 			</div>
-			<input type="hidden" name="id" value="<?php echo $this->uri->segment(3); ?>" />
-			
-			<?php if (isset($user_add)) { ?>
-			<!-- Email Notification Option (only for new users) -->
+			<!-- QSO Form Customisation -->
+			<div class="accordion-item">
+				<h2 class="accordion-header" id="panelsStayOpen-H_qso_form">
+					<button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#panelsStayOpen-B_qso_form" aria-expanded="false" aria-controls="panelsStayOpen-B_qso_form">
+						QSO Form</button>
+				</h2>
+				<div id="panelsStayOpen-B_qso_form" class="accordion-collapse collapse" aria-labelledby="panelsStayOpen-H_qso_form">
+					<div class="accordion-body">
+						<?php
+						if (!isset($qso_fields)) {
+							$qso_fields = [];
+						}
+						$qso_fields = array_merge([
+							'rst' => true, 'name' => true, 'qth' => true, 'locator' => true, 'comment' => true,
+							'station_tab' => true, 'freq_tx' => true, 'freq_rx' => true, 'band_rx' => true,
+							'transmit_power' => true, 'operator_callsign' => true,
+							'general_tab' => true, 'iota' => true, 'sota' => true, 'wwff' => true, 'pota' => true,
+							'sig' => true, 'dok' => true, 'usa_state' => true,
+							'satellite_tab' => true, 'notes_tab' => true, 'qsl_tab' => true,
+							'dxcluster_tab' => true,
+						], $qso_fields);
+						?>
+						<div class="row">
+							<div class="col-md">
+								<div class="card mb-3">
+									<div class="card-header">QSO Tab Fields</div>
+									<div class="card-body">
+										<div class="form-check form-switch">
+											<input name="qso_field_rst" class="form-check-input" type="checkbox" role="switch" id="qsoFieldRst" <?php if ($qso_fields['rst']) echo 'checked'; ?>>
+											<label class="form-check-label" for="qsoFieldRst">RST Sent &amp; Received</label>
+										</div>
+										<div class="form-check form-switch">
+											<input name="qso_field_name" class="form-check-input" type="checkbox" role="switch" id="qsoFieldName" <?php if ($qso_fields['name']) echo 'checked'; ?>>
+											<label class="form-check-label" for="qsoFieldName">Name</label>
+										</div>
+										<div class="form-check form-switch">
+											<input name="qso_field_qth" class="form-check-input" type="checkbox" role="switch" id="qsoFieldQth" <?php if ($qso_fields['qth']) echo 'checked'; ?>>
+											<label class="form-check-label" for="qsoFieldQth">QTH / Location</label>
+										</div>
+										<div class="form-check form-switch">
+											<input name="qso_field_locator" class="form-check-input" type="checkbox" role="switch" id="qsoFieldLocator" <?php if ($qso_fields['locator']) echo 'checked'; ?>>
+											<label class="form-check-label" for="qsoFieldLocator">Gridsquare / Locator</label>
+										</div>
+										<div class="form-check form-switch">
+											<input name="qso_field_comment" class="form-check-input" type="checkbox" role="switch" id="qsoFieldComment" <?php if ($qso_fields['comment']) echo 'checked'; ?>>
+											<label class="form-check-label" for="qsoFieldComment">Comment</label>
+										</div>
+									</div>
+								</div>
+							</div>
+
+							<div class="col-md">
+								<div class="card mb-3">
+									<div class="card-header">Station Tab</div>
+									<div class="card-body">
+										<div class="form-check form-switch">
+											<input name="qso_field_station_tab" class="form-check-input" type="checkbox" role="switch" id="qsoFieldStationTab" <?php if ($qso_fields['station_tab']) echo 'checked'; ?>>
+											<label class="form-check-label" for="qsoFieldStationTab"><strong>Show Station Tab</strong></label>
+										</div>
+										<hr>
+										<div class="form-check form-switch">
+											<input name="qso_field_freq_tx" class="form-check-input" type="checkbox" role="switch" id="qsoFieldFreqTx" <?php if ($qso_fields['freq_tx']) echo 'checked'; ?>>
+											<label class="form-check-label" for="qsoFieldFreqTx">Frequency TX</label>
+										</div>
+										<div class="form-check form-switch">
+											<input name="qso_field_freq_rx" class="form-check-input" type="checkbox" role="switch" id="qsoFieldFreqRx" <?php if ($qso_fields['freq_rx']) echo 'checked'; ?>>
+											<label class="form-check-label" for="qsoFieldFreqRx">Frequency RX</label>
+										</div>
+										<div class="form-check form-switch">
+											<input name="qso_field_band_rx" class="form-check-input" type="checkbox" role="switch" id="qsoFieldBandRx" <?php if ($qso_fields['band_rx']) echo 'checked'; ?>>
+											<label class="form-check-label" for="qsoFieldBandRx">Band RX</label>
+										</div>
+										<div class="form-check form-switch">
+											<input name="qso_field_transmit_power" class="form-check-input" type="checkbox" role="switch" id="qsoFieldTransmitPower" <?php if ($qso_fields['transmit_power']) echo 'checked'; ?>>
+											<label class="form-check-label" for="qsoFieldTransmitPower">Transmit Power</label>
+										</div>
+										<div class="form-check form-switch">
+											<input name="qso_field_operator_callsign" class="form-check-input" type="checkbox" role="switch" id="qsoFieldOperatorCallsign" <?php if ($qso_fields['operator_callsign']) echo 'checked'; ?>>
+											<label class="form-check-label" for="qsoFieldOperatorCallsign">Operator Callsign</label>
+										</div>
+									</div>
+								</div>
+							</div>
+
+							<div class="col-md">
+								<div class="card mb-3">
+									<div class="card-header">General Tab</div>
+									<div class="card-body">
+										<div class="form-check form-switch">
+											<input name="qso_field_general_tab" class="form-check-input" type="checkbox" role="switch" id="qsoFieldGeneralTab" <?php if ($qso_fields['general_tab']) echo 'checked'; ?>>
+											<label class="form-check-label" for="qsoFieldGeneralTab"><strong>Show General Tab</strong></label>
+										</div>
+										<hr>
+										<div class="form-check form-switch">
+											<input name="qso_field_iota" class="form-check-input" type="checkbox" role="switch" id="qsoFieldIota" <?php if ($qso_fields['iota']) echo 'checked'; ?>>
+											<label class="form-check-label" for="qsoFieldIota">IOTA Reference</label>
+										</div>
+										<div class="form-check form-switch">
+											<input name="qso_field_sota" class="form-check-input" type="checkbox" role="switch" id="qsoFieldSota" <?php if ($qso_fields['sota']) echo 'checked'; ?>>
+											<label class="form-check-label" for="qsoFieldSota">SOTA Reference</label>
+										</div>
+										<div class="form-check form-switch">
+											<input name="qso_field_wwff" class="form-check-input" type="checkbox" role="switch" id="qsoFieldWwff" <?php if ($qso_fields['wwff']) echo 'checked'; ?>>
+											<label class="form-check-label" for="qsoFieldWwff">WWFF Reference</label>
+										</div>
+										<div class="form-check form-switch">
+											<input name="qso_field_pota" class="form-check-input" type="checkbox" role="switch" id="qsoFieldPota" <?php if ($qso_fields['pota']) echo 'checked'; ?>>
+											<label class="form-check-label" for="qsoFieldPota">POTA Reference</label>
+										</div>
+										<div class="form-check form-switch">
+											<input name="qso_field_sig" class="form-check-input" type="checkbox" role="switch" id="qsoFieldSig" <?php if ($qso_fields['sig']) echo 'checked'; ?>>
+											<label class="form-check-label" for="qsoFieldSig">SIG / SIG Info</label>
+										</div>
+										<div class="form-check form-switch">
+											<input name="qso_field_dok" class="form-check-input" type="checkbox" role="switch" id="qsoFieldDok" <?php if ($qso_fields['dok']) echo 'checked'; ?>>
+											<label class="form-check-label" for="qsoFieldDok">DOK (DARC)</label>
+										</div>
+										<div class="form-check form-switch">
+											<input name="qso_field_usa_state" class="form-check-input" type="checkbox" role="switch" id="qsoFieldUsaState" <?php if ($qso_fields['usa_state']) echo 'checked'; ?>>
+											<label class="form-check-label" for="qsoFieldUsaState">USA State &amp; County</label>
+										</div>
+									</div>
+								</div>
+							</div>
+
+							<div class="col-md">
+								<div class="card mb-3">
+									<div class="card-header">Other Tabs</div>
+									<div class="card-body">
+										<div class="form-check form-switch">
+											<input name="qso_field_satellite_tab" class="form-check-input" type="checkbox" role="switch" id="qsoFieldSatelliteTab" <?php if ($qso_fields['satellite_tab']) echo 'checked'; ?>>
+											<label class="form-check-label" for="qsoFieldSatelliteTab">Satellite Tab</label>
+										</div>
+										<div class="form-check form-switch">
+											<input name="qso_field_notes_tab" class="form-check-input" type="checkbox" role="switch" id="qsoFieldNotesTab" <?php if ($qso_fields['notes_tab']) echo 'checked'; ?>>
+											<label class="form-check-label" for="qsoFieldNotesTab">Notes Tab</label>
+										</div>
+										<div class="form-check form-switch">
+											<input name="qso_field_qsl_tab" class="form-check-input" type="checkbox" role="switch" id="qsoFieldQslTab" <?php if ($qso_fields['qsl_tab']) echo 'checked'; ?>>
+											<label class="form-check-label" for="qsoFieldQslTab">QSL Tab</label>
+										</div>
+										<div class="form-check form-switch">
+											<input name="qso_field_dxcluster_tab" class="form-check-input" type="checkbox" role="switch" id="qsoFieldDxClusterTab" <?php if ($qso_fields['dxcluster_tab']) echo 'checked'; ?>>
+											<label class="form-check-label" for="qsoFieldDxClusterTab">DX Cluster Tab</label>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<input type="hidden" name="id" value="<?php echo $this->uri->segment(3); ?>" />
+		
+		<?php if (isset($user_add)) { ?>
 			<div class="card mt-3">
 				<div class="card-body">
 					<div class="form-check">

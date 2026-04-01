@@ -619,7 +619,7 @@ class Note extends CI_Model {
 
 		$table = $this->config->item('table_name');
 
-		$this->db->select('COL_CALL, COL_TIME_ON, COL_BAND, COL_MODE, COL_SUBMODE, COL_COUNTRY, COL_GRIDSQUARE, COL_RST_SENT, COL_RST_RCVD, COL_FREQ, COL_DXCC, COL_DISTANCE, COL_PROP_MODE, COL_SAT_NAME, COL_SAT_MODE');
+		$this->db->select('COL_CALL, COL_TIME_ON, COL_BAND, COL_MODE, COL_SUBMODE, COL_COUNTRY, COL_GRIDSQUARE, COL_VUCC_GRIDS, COL_RST_SENT, COL_RST_RCVD, COL_FREQ, COL_DXCC, COL_DISTANCE, COL_PROP_MODE, COL_SAT_NAME, COL_SAT_MODE');
 		$this->db->from($table);
 		$this->db->where_in('station_id', $station_ids);
 		$this->db->where('DATE(COL_TIME_ON)', $date);
@@ -664,15 +664,51 @@ class Note extends CI_Model {
 		$this->db->order_by('mode_label', 'ASC');
 		$modesResult = $this->db->get()->result();
 
-		$this->db->select('COL_CALL, COL_COUNTRY, COL_DISTANCE');
-		$this->db->from($table);
-		$this->db->where_in('station_id', $station_ids);
-		$this->db->where('DATE(COL_TIME_ON)', $date);
-		$this->db->where('COL_DISTANCE IS NOT NULL', null, FALSE);
-		$this->db->where('COL_DISTANCE >', 0);
-		$this->db->order_by('COL_DISTANCE+0', 'DESC', FALSE);
-		$this->db->limit(1);
-		$highlight = $this->db->get()->row();
+		// Get highlight DX - prefer stored distance, but also consider QSOs with a
+		// gridsquare (or VUCC grids) that have no stored distance so they are not excluded.
+		$this->db->select('t.COL_CALL, t.COL_COUNTRY, t.COL_DISTANCE, t.COL_GRIDSQUARE, t.COL_VUCC_GRIDS, sp.station_gridsquare', FALSE);
+		$this->db->from($table . ' t');
+		$this->db->join('station_profile sp', 'sp.station_id = t.station_id', 'left');
+		$this->db->where_in('t.station_id', $station_ids);
+		$this->db->where('DATE(t.COL_TIME_ON)', $date);
+		$this->db->group_start();
+			$this->db->where('t.COL_DISTANCE >', 0);
+			$this->db->or_group_start();
+				$this->db->group_start();
+					$this->db->where('t.COL_GRIDSQUARE IS NOT NULL', null, FALSE);
+					$this->db->where('t.COL_GRIDSQUARE !=', '');
+				$this->db->group_end();
+				$this->db->or_group_start();
+					$this->db->where('t.COL_VUCC_GRIDS IS NOT NULL', null, FALSE);
+					$this->db->where('t.COL_VUCC_GRIDS !=', '');
+				$this->db->group_end();
+				$this->db->where('sp.station_gridsquare IS NOT NULL', null, FALSE);
+				$this->db->where('sp.station_gridsquare !=', '');
+			$this->db->group_end();
+		$this->db->group_end();
+		$this->db->order_by('t.COL_DISTANCE+0', 'DESC', FALSE);
+		$this->db->limit(50);
+		$highlight_candidates = $this->db->get()->result();
+
+		$highlight = null;
+		if (!empty($highlight_candidates)) {
+			$this->load->library('Qra');
+			$best_distance = 0;
+			foreach ($highlight_candidates as $candidate) {
+				$dist = (float)($candidate->COL_DISTANCE ?? 0);
+				if ($dist <= 0 && !empty($candidate->station_gridsquare)) {
+					$grid = !empty($candidate->COL_GRIDSQUARE) ? $candidate->COL_GRIDSQUARE : ($candidate->COL_VUCC_GRIDS ?? '');
+					if (!empty($grid)) {
+						$dist = (float)$this->qra->distance($candidate->station_gridsquare, $grid, 'K');
+					}
+				}
+				if ($dist > $best_distance) {
+					$best_distance = $dist;
+					$highlight = $candidate;
+					$highlight->COL_DISTANCE = (int)round($dist);
+				}
+			}
+		}
 
 		$bands = array();
 		foreach ($bandsResult as $band) {
@@ -763,7 +799,7 @@ class Note extends CI_Model {
 
 		$table = $this->config->item('table_name');
 
-		$this->db->select('COL_CALL, COL_TIME_ON, COL_BAND, COL_MODE, COL_SUBMODE, COL_COUNTRY, COL_GRIDSQUARE, COL_RST_SENT, COL_RST_RCVD, COL_FREQ, COL_DXCC, COL_DISTANCE, COL_PROP_MODE, COL_SAT_NAME, COL_SAT_MODE');
+		$this->db->select('COL_CALL, COL_TIME_ON, COL_BAND, COL_MODE, COL_SUBMODE, COL_COUNTRY, COL_GRIDSQUARE, COL_VUCC_GRIDS, COL_RST_SENT, COL_RST_RCVD, COL_FREQ, COL_DXCC, COL_DISTANCE, COL_PROP_MODE, COL_SAT_NAME, COL_SAT_MODE');
 		$this->db->from($table);
 		$this->db->where_in('station_id', $station_ids);
 		$this->db->where('DATE(COL_TIME_ON) >=', $start_date);
@@ -834,22 +870,57 @@ class Note extends CI_Model {
 		$this->db->order_by('mode_label', 'ASC');
 		$modesResult = $this->db->get()->result();
 
-		// Get highlight DX
-		$this->db->select('COL_CALL, COL_COUNTRY, COL_DISTANCE');
-		$this->db->from($table);
-		$this->db->where_in('station_id', $station_ids);
-		$this->db->where('DATE(COL_TIME_ON) >=', $start_date);
-		$this->db->where('DATE(COL_TIME_ON) <=', $end_date);
-		
+		// Get highlight DX - prefer stored distance, but also consider QSOs with a
+		// gridsquare (or VUCC grids) that have no stored distance so they are not excluded.
+		$this->db->select('t.COL_CALL, t.COL_COUNTRY, t.COL_DISTANCE, t.COL_GRIDSQUARE, t.COL_VUCC_GRIDS, sp.station_gridsquare', FALSE);
+		$this->db->from($table . ' t');
+		$this->db->join('station_profile sp', 'sp.station_id = t.station_id', 'left');
+		$this->db->where_in('t.station_id', $station_ids);
+		$this->db->where('DATE(t.COL_TIME_ON) >=', $start_date);
+		$this->db->where('DATE(t.COL_TIME_ON) <=', $end_date);
+
 		if ($sat_only) {
-			$this->db->where('COL_PROP_MODE', 'SAT');
+			$this->db->where('t.COL_PROP_MODE', 'SAT');
 		}
 
-		$this->db->where('COL_DISTANCE IS NOT NULL', null, FALSE);
-		$this->db->where('COL_DISTANCE >', 0);
-		$this->db->order_by('COL_DISTANCE+0', 'DESC', FALSE);
-		$this->db->limit(1);
-		$highlight = $this->db->get()->row();
+		$this->db->group_start();
+			$this->db->where('t.COL_DISTANCE >', 0);
+			$this->db->or_group_start();
+				$this->db->group_start();
+					$this->db->where('t.COL_GRIDSQUARE IS NOT NULL', null, FALSE);
+					$this->db->where('t.COL_GRIDSQUARE !=', '');
+				$this->db->group_end();
+				$this->db->or_group_start();
+					$this->db->where('t.COL_VUCC_GRIDS IS NOT NULL', null, FALSE);
+					$this->db->where('t.COL_VUCC_GRIDS !=', '');
+				$this->db->group_end();
+				$this->db->where('sp.station_gridsquare IS NOT NULL', null, FALSE);
+				$this->db->where('sp.station_gridsquare !=', '');
+			$this->db->group_end();
+		$this->db->group_end();
+		$this->db->order_by('t.COL_DISTANCE+0', 'DESC', FALSE);
+		$this->db->limit(50);
+		$highlight_candidates = $this->db->get()->result();
+
+		$highlight = null;
+		if (!empty($highlight_candidates)) {
+			$this->load->library('Qra');
+			$best_distance = 0;
+			foreach ($highlight_candidates as $candidate) {
+				$dist = (float)($candidate->COL_DISTANCE ?? 0);
+				if ($dist <= 0 && !empty($candidate->station_gridsquare)) {
+					$grid = !empty($candidate->COL_GRIDSQUARE) ? $candidate->COL_GRIDSQUARE : ($candidate->COL_VUCC_GRIDS ?? '');
+					if (!empty($grid)) {
+						$dist = (float)$this->qra->distance($candidate->station_gridsquare, $grid, 'K');
+					}
+				}
+				if ($dist > $best_distance) {
+					$best_distance = $dist;
+					$highlight = $candidate;
+					$highlight->COL_DISTANCE = (int)round($dist);
+				}
+			}
+		}
 
 		$bands = array();
 		foreach ($bandsResult as $band) {

@@ -2315,6 +2315,32 @@ class Logbook_model extends CI_Model
     return $query->num_rows();
   }
 
+  /**
+   * Check if a DXCC entity (by ADIF number) has been worked on a specific band.
+   *
+   * @param  int        $dxcc                  ADIF DXCC number
+   * @param  array      $StationLocationsArray  Array of station_id values to scope to
+   * @param  string|null $band                  Band name, or null to check all bands
+   * @return bool
+   */
+  function check_if_dxcc_worked_in_logbook($dxcc, $StationLocationsArray, $band = null)
+  {
+    if (!$dxcc || empty($StationLocationsArray)) {
+      return false;
+    }
+
+    $this->db->select('COL_DXCC');
+    $this->db->where_in('station_id', $StationLocationsArray);
+    $this->db->where('COL_DXCC', $dxcc);
+    if ($band !== null) {
+      $this->db->where('COL_BAND', $band);
+    }
+    $this->db->limit(1);
+    $query = $this->db->get($this->config->item('table_name'));
+
+    return $query->num_rows() > 0;
+  }
+
   function check_if_grid_worked_in_logbook($grid, $StationLocationsArray = null, $band = null)
   {
 
@@ -5622,7 +5648,13 @@ class Logbook_model extends CI_Model
       $plot['callsign'] = $row->COL_CALL;
       $flag = strtolower($CI->dxccflag->getISO($row->COL_DXCC));
       $plot['flag'] = '<span data-bs-toggle="tooltip" title="' . ucwords(strtolower(($row->name == null ? "- NONE -" : $row->name))) . '"><span class="fi fi-' . $flag . '"></span></span> ';
-      $plot['html'] = ($row->COL_GRIDSQUARE != null ?  "<b>Grid:</b> " . $row->COL_GRIDSQUARE . "<br />" : "");
+      if ($row->COL_GRIDSQUARE != null) {
+        $plot['html'] = "<b>Grid:</b> " . $row->COL_GRIDSQUARE . "<br />";
+      } elseif (!empty($row->COL_VUCC_GRIDS)) {
+        $plot['html'] = "<b>VUCC:</b> " . $row->COL_VUCC_GRIDS . "<br />";
+      } else {
+        $plot['html'] = "";
+      }
       $plot['html'] .= "<b>Date/Time:</b> " . $row->COL_TIME_ON . "<br />";
       $plot['html'] .= ($row->COL_SAT_NAME != null) ? ("<b>SAT:</b> " . $row->COL_SAT_NAME . "<br />") : ("<b>Band:</b> " . $row->COL_BAND . " ");
       $plot['html'] .= "<b>Mode:</b> " . ($row->COL_SUBMODE == null ? $row->COL_MODE : $row->COL_SUBMODE) . "<br />";

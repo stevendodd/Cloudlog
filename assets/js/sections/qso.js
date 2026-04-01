@@ -745,7 +745,7 @@ function reset_fields() {
 	$('#qrz_info').text("");
 	$('#hamqth_info').text("");
 	$('#sota_info').text("");
-	$('#dxcc_id').val("");
+	$('#dxcc_id').val("").trigger('change');
 	$('#cqz').val("");
 	$('#name').val("");
 	$('#qth').val("");
@@ -769,17 +769,17 @@ function reset_fields() {
 	$('#qso-last-table').show();
 	$('#partial_view').hide();
 	var $select = $('#wwff_ref').selectize();
-	var selectize = $select[0].selectize;
-	selectize.clear();
-	var $select = $('#pota_ref').selectize();
-	var selectize = $select[0].selectize;
-	selectize.clear();
-	var $select = $('#darc_dok').selectize();
-	var selectize = $select[0].selectize;
-	selectize.clear();
+	var selectize = $select[0] ? $select[0].selectize : null;
+	if (selectize) selectize.clear();
+	$select = $('#pota_ref').selectize();
+	selectize = $select[0] ? $select[0].selectize : null;
+	if (selectize) selectize.clear();
+	$select = $('#darc_dok').selectize();
+	selectize = $select[0] ? $select[0].selectize : null;
+	if (selectize) selectize.clear();
 	$select = $('#stationCntyInput').selectize();
-	selectize = $select[0].selectize;
-	selectize.clear();
+	selectize = $select[0] ? $select[0].selectize : null;
+	if (selectize) selectize.clear();
 
 	mymap.setView(pos, 12);
 	mymap.removeLayer(markers);
@@ -917,19 +917,19 @@ $("#callsign").focusout(function() {
 				$('#hamqth_info').attr('title', 'Lookup '+callsign+' info on hamqth.com');
 
 				var $dok_select = $('#darc_dok').selectize();
-				var dok_selectize = $dok_select[0].selectize;
+				var dok_selectize = $dok_select[0] ? $dok_select[0].selectize : null;
 				if (result.dxcc.adif == '230') {
 					$.get(base_url + 'index.php/lookup/dok/' + $('#callsign').val().toUpperCase(), function(result) {
-						if (result) {
+						if (result && dok_selectize) {
 							dok_selectize.addOption({name: result});
 							dok_selectize.setValue(result, false);
 						}
 					});
 				} else {
-					dok_selectize.clear();
+					if (dok_selectize) dok_selectize.clear();
 				}
 
-				$('#dxcc_id').val(result.dxcc.adif);
+				$('#dxcc_id').val(result.dxcc.adif).trigger('change');
 				$('#cqz').val(result.dxcc.cqz);
 				$('#ituz').val(result.dxcc.ituz);
 
@@ -995,11 +995,14 @@ $("#callsign").focusout(function() {
 				/*
 				* Update county with returned value
 				*/
-				if( $('#stationCntyInput').has('option').length == 0 && result.callsign_us_county != "") {
-					var $county_select = $('#stationCntyInput').selectize();
-					var county_selectize = $county_select[0].selectize;
-					county_selectize.addOption({name: result.callsign_us_county});
-					county_selectize.setValue(result.callsign_us_county, false);
+				var $county_elem = $('#stationCntyInput');
+				if( $county_elem.length && $county_elem.has('option').length == 0 && result.callsign_us_county != "") {
+					var $county_select = $county_elem.selectize();
+					var county_selectize = $county_select[0] ? $county_select[0].selectize : null;
+					if (county_selectize) {
+						county_selectize.addOption({name: result.callsign_us_county});
+						county_selectize.setValue(result.callsign_us_county, false);
+					}
 				}
 
 				if(result.timesWorked != "") {
@@ -1148,9 +1151,13 @@ $('#band').change(function() {
 });
 
 /* On Key up Calculate Bearing and Distance */
+var locatorDebounceTimer = null;
 $("#locator").keyup(function(){
-	if ($(this).val()) {
-		var qra_input = $(this).val();
+	clearTimeout(locatorDebounceTimer);
+	var $locator = $(this);
+	locatorDebounceTimer = setTimeout(function(){
+	if ($locator.val()) {
+		var qra_input = $locator.val();
 
 		var qra_lookup = qra_input.substring(0, 4);
 
@@ -1204,64 +1211,36 @@ $("#locator").keyup(function(){
 			}
 		}
 
-		if(qra_input.length >= 4 && $(this).val().length > 0) {
-			$.ajax({
-				url: base_url + 'index.php/logbook/qralatlngjson',
-				type: 'post',
-				data: {
-					qra: $(this).val(),
-				},
-				success: function(data) {
-					// Set Map to Lat/Long
-					result = JSON.parse(data);
-					markers.clearLayers();
-					if (typeof result[0] !== "undefined" && typeof result[1] !== "undefined") {
-						var redIcon = L.icon({
-							iconUrl: icon_dot_url,
-							iconSize:     [18, 18], // size of the icon
-						});
+		if(qra_input.length >= 4 && $locator.val().length > 0) {
+			// Map pin — grid → lat/lng (pure frontend math, no server round-trip)
+			var latlng = QraUtils.qra2latlong(qra_input);
+			markers.clearLayers();
+			if (latlng && typeof latlng[0] !== "undefined" && typeof latlng[1] !== "undefined") {
+				var redIcon = L.icon({
+					iconUrl: icon_dot_url,
+					iconSize: [18, 18],
+				});
+				var marker = L.marker([latlng[0], latlng[1]], {icon: redIcon});
+				mymap.setZoom(8);
+				mymap.panTo([latlng[0], latlng[1]]);
+				mymap.setView([latlng[0], latlng[1]], 8);
+				markers.addLayer(marker).addTo(mymap);
+			}
 
-						var marker = L.marker([result[0], result[1]], {icon: redIcon});
-						mymap.setZoom(8);
-						mymap.panTo([result[0], result[1]]);
-						mymap.setView([result[0], result[1]], 8);
-					   markers.addLayer(marker).addTo(mymap);
-					}
-				},
-				error: function() {
-				},
-			});
+			// Bearing and distance — pure frontend math using injected station gridsquares
+			var myGrid = station_gridsquares[$('#stationProfile').val()];
+			if (myGrid) {
+				var bearingStr = QraUtils.bearingString(myGrid, qra_input, qso_measurement_base);
+				if (bearingStr) {
+					$('#locator_info').html(bearingStr).fadeIn("slow");
+				}
 
-			$.ajax({
-				url: base_url + 'index.php/logbook/searchbearing',
-				type: 'post',
-				data: {
-					grid: $(this).val(),
-					stationProfile: $('#stationProfile').val()
-				},
-				success: function(data) {
-					$('#locator_info').html(data).fadeIn("slow");
-				},
-				error: function() {
-					$('#locator_info').text("Error loading bearing!").fadeIn("slow");
-				},
-			});
-			$.ajax({
-				url: base_url + 'index.php/logbook/searchdistance',
-				type: 'post',
-				data: {
-					grid: $(this).val(),
-					stationProfile: $('#stationProfile').val()
-				},
-				success: function(data) {
-					document.getElementById("distance").value = data;
-				},
-				error: function() {
-					document.getElementById("distance").value = null;
-				},
-			});
+				var dist = QraUtils.distanceKm(myGrid, qra_input);
+				document.getElementById("distance").value = dist !== null ? dist : '';
+			}
 		}
 	}
+	}, 300);
 });
 
 // Change report based on mode
@@ -1371,6 +1350,8 @@ function lookupQsoCallhistory(callsign) {
 }
 
 $('#dxcc_id').on('change', function() {
+	if (typeof toggleDokField === 'function') toggleDokField();
+	if (typeof toggleUsaFields === 'function') toggleUsaFields();
 	$.getJSON(base_url + 'index.php/logbook/jsonentity/' + $(this).val(), function (result) {
 		if (result.dxcc.name != undefined) {
 
@@ -1444,7 +1425,7 @@ function resetDefaultQSOFields() {
 	$('#lotw_info').removeClass("lotw_info_orange");
 	$('#qrz_info').text("");
 	$('#hamqth_info').text("");
-	$('#dxcc_id').val("");
+	$('#dxcc_id').val("").trigger('change');
 	$('#cqz').val("");
 	$("#locator").removeClass("workedGrid");
 	$("#locator").removeClass("confirmedGrid");

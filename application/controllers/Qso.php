@@ -52,6 +52,9 @@ class QSO extends CI_Controller {
 			$data['user_date_format'] = $this->config->item('qso_date_format');
 		}
 
+		// Measurement base for frontend bearing/distance calculations
+		$data['measurement_base'] = $this->session->userdata('user_measurement_base') ?: $this->config->item('measurement_base');
+
 		$this->load->library('form_validation');
 
 		$this->form_validation->set_rules('start_date', 'Date', 'required');
@@ -65,6 +68,24 @@ class QSO extends CI_Controller {
 		$this->load->model('user_options_model');
 		$options_object = $this->user_options_model->get_options('eqsl_default_qslmsg',array('option_name'=>'key_station_id','option_key'=>$data['active_station_profile']))->result();
 		$data['qslmsg'] = (isset($options_object[0]->option_value))?$options_object[0]->option_value:'';
+
+		// Load QSO form field visibility preferences
+		$qso_fields_defaults = [
+			'rst' => true, 'name' => true, 'qth' => true, 'locator' => true, 'comment' => true,
+			'station_tab' => true, 'freq_tx' => true, 'freq_rx' => true, 'band_rx' => true,
+			'transmit_power' => true, 'operator_callsign' => true,
+			'general_tab' => true, 'iota' => true, 'sota' => true, 'wwff' => true, 'pota' => true,
+			'sig' => true, 'dok' => true, 'usa_state' => true,
+			'satellite_tab' => true, 'notes_tab' => true, 'qsl_tab' => true,
+			'dxcluster_tab' => true,
+		];
+		$qso_form_options = $this->user_options_model->get_options('qso_form')->result();
+		foreach ($qso_form_options as $qfo_item) {
+			if ($qfo_item->option_key == 'visible' && array_key_exists($qfo_item->option_name, $qso_fields_defaults)) {
+				$qso_fields_defaults[$qfo_item->option_name] = ($qfo_item->option_value == 'true');
+			}
+		}
+		$data['qso_fields'] = $qso_fields_defaults;
 
 		if ($this->form_validation->run() == FALSE)
 		{

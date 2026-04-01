@@ -1,6 +1,13 @@
+<?php $manual = (int)($this->input->get('manual') ?? 0); ?>
 <div class="container qso_panel">
   <script language="javascript">
-    var qso_manual = "<?php echo $_GET['manual']; ?>";
+    var qso_manual = "<?php echo $manual; ?>";
+    var station_gridsquares = <?php
+        $sq = [];
+        foreach ($stations->result() as $st) { $sq[(int)$st->station_id] = $st->station_gridsquare; }
+        echo json_encode($sq);
+    ?>;
+    var qso_measurement_base = "<?php echo htmlspecialchars($measurement_base ?? 'K', ENT_QUOTES, 'UTF-8'); ?>";
     var text_error_timeoff_less_timeon = "<?php echo lang('qso_error_timeoff_less_timeon'); ?>";
     var lang_qso_title_previous_contacts = "<?php echo lang('qso_title_previous_contacts'); ?>";
     var lang_qso_title_times_worked_before = "<?php echo lang('qso_title_times_worked_before'); ?>";
@@ -19,7 +26,7 @@
     <div class="col-sm-5">
       <div class="card">
 
-        <form id="qso_input" method="post" action="<?php echo site_url('qso') . "?manual=" . $_GET['manual']; ?>" name="qsos" autocomplete="off" onReset="resetTimers(<?php echo $_GET['manual']; ?>);">
+        <form id="qso_input" method="post" action="<?php echo site_url('qso') . "?manual=" . $manual; ?>" name="qsos" autocomplete="off" onReset="resetTimers(<?php echo $manual; ?>);">
 
           <div class="card-header">
             <ul style="font-size: 15px;" class="nav nav-tabs card-header-tabs pull-right" id="myTab" role="tablist">
@@ -27,27 +34,35 @@
                 <a class="nav-link active" id="qsp-tab" data-bs-toggle="tab" href="#qso" role="tab" aria-controls="qso" aria-selected="true"><?php echo lang('gen_hamradio_qso'); ?></a>
               </li>
 
+              <?php if ($qso_fields['station_tab']): ?>
               <li class="nav-item">
                 <a class="nav-link" id="station-tab" data-bs-toggle="tab" href="#station" role="tab" aria-controls="station" aria-selected="false"><?php echo lang('gen_hamradio_station'); ?></a>
               </li>
+              <?php endif; ?>
 
+              <?php if ($qso_fields['general_tab']): ?>
               <li class="nav-item">
                 <a class="nav-link" id="general-tab" data-bs-toggle="tab" href="#general" role="tab" aria-controls="general" aria-selected="false"><?php echo lang('general_word_general'); ?></a>
               </li>
+              <?php endif; ?>
 
-              <?php if ($sat_active) { ?>
+              <?php if ($sat_active && $qso_fields['satellite_tab']): ?>
                 <li class="nav-item">
                   <a class="nav-link" id="satellite-tab" data-bs-toggle="tab" href="#satellite" role="tab" aria-controls="satellite" aria-selected="false"><?php echo lang('general_word_satellite_short'); ?></a>
                 </li>
-              <?php } ?>
+              <?php endif; ?>
 
+              <?php if ($qso_fields['notes_tab']): ?>
               <li class="nav-item">
                 <a class="nav-link" id="notes-tab" data-bs-toggle="tab" href="#nav-notes" role="tab" aria-controls="notes" aria-selected="false"><?php echo lang('general_word_notes'); ?></a>
               </li>
+              <?php endif; ?>
 
+              <?php if ($qso_fields['qsl_tab']): ?>
               <li class="nav-item">
                 <a class="nav-link" id="qsl-tab" data-bs-toggle="tab" href="#qsl" role="tab" aria-controls="qsl" aria-selected="false"><?php echo lang('gen_hamradio_qsl'); ?></a>
               </li>
+              <?php endif; ?>
 
               <li class="nav-item dropdown">
                 <a class="nav-link dropdown-toggle" id="fav_item" data-bs-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false"><i class="fa fa-star"></i></a>
@@ -59,10 +74,10 @@
               </li>
 
               <li class="nav-item ms-auto d-flex align-items-center">
-                <?php if ($_GET['manual'] == 0) {
+                <?php if ($manual == 0) {
                   echo " <span class=\"badge text-bg-success\" style=\"cursor: pointer; font-size: 0.9rem; padding: 0.4rem 0.9rem;\" onclick=\"switchMode('" . site_url('qso') . "?manual=1')\" title=\"Switch to Manual mode\">LIVE</span>";
                 };
-                if ($_GET['manual'] == 1) {
+                if ($manual == 1) {
                   echo " <span class=\"badge text-bg-danger\" style=\"cursor: pointer; font-size: 0.9rem; padding: 0.4rem 0.9rem;\" onclick=\"switchMode('" . site_url('qso') . "?manual=0')\" title=\"Switch to LIVE mode\">POST</span>";
                 } ?>
               </li>
@@ -82,12 +97,12 @@
                                                                                                                                     echo $this->session->userdata('start_date');
                                                                                                                                   } else {
                                                                                                                                     echo date($user_date_format);
-                                                                                                                                  } ?>" <?php echo ($_GET['manual'] == 0 ? "disabled" : "");  ?> required>
+                                                                                                                                  } ?>" <?php echo ($manual == 0 ? "disabled" : "");  ?> required>
                     </div>
 
                     <div class="mb-3 col-md-3">
                       <label for="start_time"><?php echo lang('general_word_time_on'); ?></label>
-                      <?php if ($_GET['manual'] != 1) { ?>
+                      <?php if ($manual != 1) { ?>
                         <i id="reset_time" data-bs-toggle="tooltip" title="Reset start time" class="fas fa-stopwatch"></i>
                       <?php } else { ?>
                         <i id="reset_start_time" data-bs-toggle="tooltip" title="Reset start time" class="fas fa-stopwatch"></i>
@@ -95,23 +110,23 @@
                       <input type="text" class="form-control form-control-sm input_start_time" name="start_time" id="start_time" value="<?php if (($this->session->userdata('start_time') != NULL && ((time() - $this->session->userdata('time_stamp')) < 24 * 60 * 60))) {
                                                                                                                                           echo substr($this->session->userdata('start_time'), 0, 5);
                                                                                                                                         } else {
-                                                                                                                                          echo $_GET['manual'] == 0 ? date('H:i:s') : date('H:i');
-                                                                                                                                        } ?>" size="7" <?php echo ($_GET['manual'] == 0 ? "disabled" : "");  ?> required pattern="[0-2][0-9]:[0-5][0-9]">
+                                                                                                                                          echo $manual == 0 ? date('H:i:s') : date('H:i');
+                                                                                                                                        } ?>" size="7" <?php echo ($manual == 0 ? "disabled" : "");  ?> required pattern="[0-2][0-9]:[0-5][0-9]">
                     </div>
 
                     <div class="mb-3 col-md-3">
                       <label for="end_time"><?php echo lang('general_word_time_off'); ?></label>
-                      <?php if ($_GET['manual'] == 1) { ?>
+                      <?php if ($manual == 1) { ?>
                         <i id="reset_end_time" data-bs-toggle="tooltip" title="Reset end time" class="fas fa-stopwatch"></i>
                       <?php } ?>
                       <input type="text" class="form-control form-control-sm input_end_time" name="end_time" id="end_time" value="<?php if (($this->session->userdata('end_time') != NULL && ((time() - $this->session->userdata('time_stamp')) < 24 * 60 * 60))) {
                                                                                                                                     echo substr($this->session->userdata('end_time'), 0, 5);
                                                                                                                                   } else {
-                                                                                                                                    echo $_GET['manual'] == 0 ? date('H:i:s') : date('H:i');
-                                                                                                                                  } ?>" size="7" <?php echo ($_GET['manual'] == 0 ? "disabled" : "");  ?> required pattern="[0-2][0-9]:[0-5][0-9]">
+                                                                                                                                    echo $manual == 0 ? date('H:i:s') : date('H:i');
+                                                                                                                                  } ?>" size="7" <?php echo ($manual == 0 ? "disabled" : "");  ?> required pattern="[0-2][0-9]:[0-5][0-9]">
                     </div>
 
-                    <?php if ($_GET['manual'] == 0) { ?>
+                    <?php if ($manual == 0) { ?>
                       <input class="input_start_time" type="hidden" id="start_time" name="start_time" value="<?php echo date('H:i:s'); ?>" />
                       <input class="input_end_time" type="hidden" id="end_time" name="end_time" value="<?php echo date('H:i:s'); ?>" />
                       <input class="input_date" type="hidden" id="start_date" name="start_date" value="<?php echo date($user_date_format); ?>" />
@@ -126,22 +141,22 @@
                                                                                                                                     echo $this->session->userdata('start_date');
                                                                                                                                   } else {
                                                                                                                                     echo date($user_date_format);
-                                                                                                                                  } ?>" <?php echo ($_GET['manual'] == 0 ? "disabled" : "");  ?> required>
+                                                                                                                                  } ?>" <?php echo ($manual == 0 ? "disabled" : "");  ?> required>
                     </div>
 
                     <div class="mb-3 col-md-6">
                       <label for="start_time"><?php echo lang('general_word_time'); ?></label>
-                      <?php if ($_GET['manual'] == 1) { ?>
+                      <?php if ($manual == 1) { ?>
                         <i id="reset_start_time" data-bs-toggle="tooltip" title="Reset start time" class="fas fa-stopwatch"></i>
                       <?php } ?>
                       <input type="text" class="form-control form-control-sm input_start_time" name="start_time" id="start_time" value="<?php if (($this->session->userdata('start_time') != NULL && ((time() - $this->session->userdata('time_stamp')) < 24 * 60 * 60))) {
                                                                                                                                           echo substr($this->session->userdata('start_time'), 0, 5);
                                                                                                                                         } else {
-                                                                                                                                          echo $_GET['manual'] == 0 ? date('H:i:s') : date('H:i');
-                                                                                                                                        } ?>" size="7" <?php echo ($_GET['manual'] == 0 ? "disabled" : "");  ?> required pattern="[0-2][0-9]:[0-5][0-9]">
+                                                                                                                                          echo $manual == 0 ? date('H:i:s') : date('H:i');
+                                                                                                                                        } ?>" size="7" <?php echo ($manual == 0 ? "disabled" : "");  ?> required pattern="[0-2][0-9]:[0-5][0-9]">
                     </div>
 
-                    <?php if ($_GET['manual'] == 0) { ?>
+                    <?php if ($manual == 0) { ?>
                       <input class="input_start_time" type="hidden" id="start_time" name="start_time" value="<?php echo date('H:i:s'); ?>" />
                       <input class="input_date" type="hidden" id="start_date" name="start_date" value="<?php echo date($user_date_format); ?>" />
                     <?php } ?>
@@ -198,6 +213,7 @@
                 </div>
 
                 <!-- Signal Report Information -->
+                <?php if ($qso_fields['rst']): ?>
                 <div class="row">
                   <div class="mb-3 col-md-6">
                     <label for="rst_sent"><?php echo lang('gen_hamradio_rsts'); ?></label>
@@ -209,21 +225,30 @@
                     <input type="text" class="form-control form-control-sm" name="rst_rcvd" id="rst_rcvd" value="59">
                   </div>
                 </div>
+                <?php else: ?>
+                <input type="hidden" name="rst_sent" value="59">
+                <input type="hidden" name="rst_rcvd" value="59">
+                <?php endif; ?>
 
+                <?php if ($qso_fields['name']): ?>
                 <div class="mb-3 row">
                   <label for="name" class="col-sm-3 col-form-label"><?php echo lang('general_word_name'); ?></label>
                   <div class="col-sm-9">
                     <input type="text" class="form-control form-control-sm" name="name" id="name" value="">
                   </div>
                 </div>
+                <?php endif; ?>
 
+                <?php if ($qso_fields['qth']): ?>
                 <div class="mb-3 row">
                   <label for="qth" class="col-sm-3 col-form-label"><?php echo lang('general_word_location'); ?></label>
                   <div class="col-sm-9">
                     <input type="text" class="form-control form-control-sm" name="qth" id="qth" value="">
                   </div>
                 </div>
+                <?php endif; ?>
 
+                <?php if ($qso_fields['locator']): ?>
                 <div class="mb-3 row">
                   <label for="locator" class="col-sm-3 col-form-label"><?php echo lang('gen_hamradio_gridsquare'); ?></label>
                   <div class="col-sm-9">
@@ -231,18 +256,22 @@
                     <small id="locator_info" class="form-text text-muted"></small>
                   </div>
                 </div>
+                <?php endif; ?>
 
                 <input type="hidden" name="distance" id="distance" value="0">
 
+                <?php if ($qso_fields['comment']): ?>
                 <div class="mb-3 row">
                   <label for="comment" class="col-sm-3 col-form-label"><?php echo lang('general_word_comment'); ?></label>
                   <div class="col-sm-9">
                     <input type="text" class="form-control form-control-sm" name="comment" id="comment" value="">
                   </div>
                 </div>
+                <?php endif; ?>
 
               </div>
 
+              <?php if ($qso_fields['station_tab']): ?>
               <!-- Station Panel Data -->
               <div class="tab-pane fade" id="station" role="tabpanel" aria-labelledby="station-tab">
                 <div class="mb-3">
@@ -272,16 +301,21 @@
                   </select>
                 </div>
 
+                <?php if ($qso_fields['freq_tx']): ?>
                 <div class="mb-3">
                   <label for="frequency"><?php echo lang('gen_hamradio_frequency'); ?></label>
                   <input type="text" class="form-control" id="frequency" name="freq_display" value="<?php echo $this->session->userdata('freq'); ?>" />
                 </div>
+                <?php endif; // freq_tx ?>
 
+                <?php if ($qso_fields['freq_rx']): ?>
                 <div class="mb-3">
                   <label for="frequency_rx"><?php echo lang('gen_hamradio_frequency_rx'); ?></label>
                   <input type="text" class="form-control" id="frequency_rx" name="freq_display_rx" value="<?php echo $this->session->userdata('freq_rx'); ?>" />
                 </div>
+                <?php endif; // freq_rx ?>
 
+                <?php if ($qso_fields['band_rx']): ?>
                 <div class="mb-3">
                   <label for="band_rx"><?php echo lang('gen_hamradio_band_rx'); ?></label>
 
@@ -302,7 +336,9 @@
                     ?>
                   </select>
                 </div>
+                <?php endif; // band_rx ?>
 
+                <?php if ($qso_fields['transmit_power']): ?>
                 <div class="mb-3">
                   <label for="transmit_power"><?php echo lang('gen_hamradio_transmit_power'); ?></label>
                   <input type="number" step="0.001" class="form-control" id="transmit_power" name="transmit_power" value="<?php if ($this->session->userdata('transmit_power')) {
@@ -312,16 +348,21 @@
                                                                                                                           } ?>" />
                   <small id="powerHelp" class="form-text text-muted"><?php echo lang('qso_transmit_power_helptext'); ?></small>
                 </div>
+                <?php endif; // transmit_power ?>
 
+                <?php if ($qso_fields['operator_callsign']): ?>
                 <div class="mb-3">
                   <label for="operator_callsign"><?php echo lang('qso_operator_callsign'); ?></label>
                   <input type="text" class="form-control" id="operator_callsign" name="operator_callsign" value="<?php if ($this->session->userdata('operator_callsign')) {
                                                                                                                     echo $this->session->userdata('operator_callsign');
                                                                                                                   } ?>" />
                 </div>
+                <?php endif; // operator_callsign ?>
 
               </div>
+              <?php endif; // station_tab ?>
 
+              <?php if ($qso_fields['general_tab']): ?>
               <!-- General Items -->
               <div class="tab-pane fade" id="general" role="tabpanel" aria-labelledby="general-tab">
                 <div class="mb-3">
@@ -427,7 +468,8 @@
                   </select>
                 </div>
 
-                <div class="mb-3">
+                <?php if ($qso_fields['usa_state']): ?>
+                <div class="mb-3" id="usa_state_field_wrapper" style="display:none">
                   <label for="input_usa_state"><?php echo lang('gen_hamradio_usa_state'); ?></label>
                   <select class="form-select" id="input_usa_state" name="usa_state">
                     <option value=""></option>
@@ -485,11 +527,13 @@
                   </select>
                 </div>
 
-                <div class="mb-3">
+                <div class="mb-3" id="usa_county_field_wrapper" style="display:none">
                   <label for="stationCntyInput"><?php echo lang('gen_hamradio_county_reference'); ?></label>
                   <input disabled="disabled" class="form-control" id="stationCntyInput" type="text" name="county" value="" />
                 </div>
+                <?php endif; // usa_state ?>
 
+                <?php if ($qso_fields['iota']): ?>
                 <div class="mb-3">
                   <label for="iota_ref"><?php echo lang('gen_hamradio_iota_reference'); ?></label>
                   <select class="form-select" id="iota_ref" name="iota_ref">
@@ -503,7 +547,9 @@
 
                   </select>
                 </div>
+                <?php endif; // iota ?>
 
+                <?php if ($qso_fields['sota']): ?>
                 <div class="row">
                   <div class="mb-3 col-md-9">
                     <label for="sota_ref"><?php echo lang('gen_hamradio_sota_reference'); ?></label>
@@ -514,7 +560,9 @@
                     <small id="sota_info" class="badge text-bg-secondary"></small>
                   </div>
                 </div>
+                <?php endif; // sota ?>
 
+                <?php if ($qso_fields['wwff']): ?>
                 <div class="row">
                   <div class="mb-3 col-md-9">
                     <label for="wwff_ref"><?php echo lang('gen_hamradio_wwff_reference'); ?></label>
@@ -525,7 +573,9 @@
                     <small id="wwff_info" class="badge text-bg-secondary"></small>
                   </div>
                 </div>
+                <?php endif; // wwff ?>
 
+                <?php if ($qso_fields['pota']): ?>
                 <div class="row">
                   <div class="mb-3 col-md-9">
                     <label for="pota_ref"><?php echo lang('gen_hamradio_pota_reference'); ?></label>
@@ -536,7 +586,9 @@
                     <small id="pota_info" class="badge text-bg-secondary"></small>
                   </div>
                 </div>
+                <?php endif; // pota ?>
 
+                <?php if ($qso_fields['sig']): ?>
                 <div class="mb-3">
                   <label for="sig"><?php echo lang('gen_hamradio_sig'); ?></label>
                   <input class="form-control" id="sig" type="text" name="sig" value="" />
@@ -548,14 +600,17 @@
                   <input class="form-control" id="sig_info" type="text" name="sig_info" value="" />
                   <small id="sigInfoHelp" class="form-text text-muted"><?php echo lang('qso_sig_info_helptext'); ?></small>
                 </div>
+                <?php endif; // sig ?>
 
-                <div class="mb-3">
+                <div class="mb-3" id="dok_field_wrapper" style="display:none"<?php if (!$qso_fields['dok']): ?> data-user-hidden="true"<?php endif; ?>>
                   <label for="darc_dok"><?php echo lang('gen_hamradio_dok'); ?></label>
                   <input class="form-control" id="darc_dok" type="text" name="darc_dok" value="" />
                   <small id="dokHelp" class="form-text text-muted"><?php echo lang('qso_dok_helptext'); ?></small>
                 </div>
               </div>
+              <?php endif; // general_tab ?>
 
+              <?php if ($sat_active && $qso_fields['satellite_tab']): ?>
               <!-- Satellite Panel -->
               <div class="tab-pane fade" id="satellite" role="tabpanel" aria-labelledby="satellite-tab">
                 <div class="mb-3">
@@ -574,7 +629,9 @@
                   <datalist id="satellite_modes" class="satellite_modes_list"></datalist>
                 </div>
               </div>
+              <?php endif; // satellite_tab ?>
 
+              <?php if ($qso_fields['notes_tab']): ?>
               <!-- Notes Panel Contents -->
               <div class="tab-pane fade" id="nav-notes" role="tabpanel" aria-labelledby="notes-tab">
                 <div class="alert alert-info" role="alert">
@@ -585,8 +642,9 @@
                   <textarea type="text" class="form-control" id="notes" name="notes" rows="10"></textarea>
                 </div>
               </div>
+              <?php endif; // notes_tab ?>
 
-              <!-- QSL Tab -->
+              <?php if ($qso_fields['qsl_tab']): ?>\n              <!-- QSL Tab -->
               <div class="tab-pane fade" id="qsl" role="tabpanel" aria-labelledby="qsl-tab">
 
                 <div class="mb-3 row">
@@ -632,6 +690,7 @@
                   <div id="qslmsg_hide" style="display:none;"><?php echo $qslmsg; ?></div>
                 </div>
               </div>
+              <?php endif; // qsl_tab ?>
             </div>
 
 
@@ -857,6 +916,13 @@
                 DXCC Summary
               </button>
             </li>
+            <?php if ($qso_fields['dxcluster_tab']): ?>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="dx-cluster-tab" data-bs-toggle="tab" data-bs-target="#dx-cluster-pane" type="button" role="tab" aria-controls="dx-cluster-pane" aria-selected="false">
+                DX Cluster
+              </button>
+            </li>
+            <?php endif; ?>
           </ul>
         </div>
 
@@ -882,6 +948,68 @@
                 <!-- DXCC Summary content will be loaded here -->
               </div>
             </div>
+
+            <!-- DX Cluster Tab -->
+            <?php if ($qso_fields['dxcluster_tab']): ?>
+            <div class="tab-pane fade" id="dx-cluster-pane" role="tabpanel" aria-labelledby="dx-cluster-tab">
+              <div class="d-flex align-items-center gap-2 flex-wrap pt-2 pb-1 border-bottom mb-1">
+                <span id="qso-cluster-status" class="badge bg-secondary" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Disconnected from DX Cluster" style="font-size:0.85rem; cursor:default;"><i id="qso-cluster-status-icon" class="fas fa-circle"></i></span>
+                <select id="qso-cluster-band" class="form-select form-select-sm" style="width:auto;font-size:0.8rem;">
+                  <option value="all">All Bands</option>
+                  <option value="160m">160m</option>
+                  <option value="80m">80m</option>
+                  <option value="60m">60m</option>
+                  <option value="40m">40m</option>
+                  <option value="30m">30m</option>
+                  <option value="20m">20m</option>
+                  <option value="17m">17m</option>
+                  <option value="15m">15m</option>
+                  <option value="12m">12m</option>
+                  <option value="10m">10m</option>
+                  <option value="6m">6m</option>
+                  <option value="4m">4m</option>
+                  <option value="2m">2m</option>
+                  <option value="70cm">70cm</option>
+                  <option value="23cm">23cm</option>
+                  <option value="ghz">GHz+</option>
+                </select>
+                <select id="qso-cluster-mode" class="form-select form-select-sm" style="width:auto;font-size:0.8rem;">
+                  <option value="all">All Modes</option>
+                  <option value="cw">CW</option>
+                  <option value="ssb">SSB</option>
+                  <option value="digi">Digital</option>
+                </select>
+                <div class="form-check mb-0">
+                  <input class="form-check-input" type="checkbox" id="qso-cluster-hide-rbn" checked>
+                  <label class="form-check-label" for="qso-cluster-hide-rbn" style="font-size:0.8rem;">Hide RBN</label>
+                </div>
+                <select id="qso-cluster-new-dxcc" class="form-select form-select-sm" style="width:auto;font-size:0.8rem;">
+                  <option value="all">All Spots</option>
+                  <option value="new_any">New DXCC or Band</option>
+                  <option value="new_dxcc">New DXCC only</option>
+                  <option value="new_band">New Band only</option>
+                </select>
+                <div class="form-check mb-0">
+                  <input class="form-check-input" type="checkbox" id="qso-cluster-track-band">
+                  <label class="form-check-label" for="qso-cluster-track-band" style="font-size:0.8rem;">Track Band</label>
+                </div>
+              </div>
+              <div>
+                <table class="table table-sm table-striped table-hover mb-0" id="qso-cluster-table">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>DX Call</th>
+                      <th>Freq</th>
+                      <th>Comment</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+              <small class="text-muted d-block pt-1"><i class="fas fa-mouse-pointer"></i> Click a spot to fill callsign &amp; frequency</small>
+            </div>
+            <?php endif; ?>
           </div>
         </div>
       </div>
@@ -942,6 +1070,42 @@
 </div>
 
 <script>
+  // Show USA State & County fields only when DXCC is USA (291) or Alaska (6)
+  function toggleUsaFields() {
+    var stateWrapper = document.getElementById('usa_state_field_wrapper');
+    var countyWrapper = document.getElementById('usa_county_field_wrapper');
+    if (!stateWrapper) return;
+    var dxcc = document.getElementById('dxcc_id');
+    var isUsa = dxcc && (dxcc.value == '291' || dxcc.value == '6');
+    stateWrapper.style.display = isUsa ? '' : 'none';
+    countyWrapper.style.display = isUsa ? '' : 'none';
+    if (!isUsa) {
+      var stateSelect = document.getElementById('input_usa_state');
+      if (stateSelect) stateSelect.value = '';
+    }
+  }
+
+  // Show DOK field only when DXCC is Germany (230)
+  function toggleDokField() {
+    var wrapper = document.getElementById('dok_field_wrapper');
+    if (!wrapper || wrapper.dataset.userHidden === 'true') return;
+    var dxcc = document.getElementById('dxcc_id');
+    if (dxcc && dxcc.value == '230') {
+      wrapper.style.display = '';
+    } else {
+      wrapper.style.display = 'none';
+      var dokInput = document.getElementById('darc_dok');
+      if (dokInput) dokInput.value = '';
+    }
+  }
+
+  // Initialise on page load once DOM is ready
+  document.addEventListener('DOMContentLoaded', function() {
+    toggleDokField();
+    toggleUsaFields();
+  });
+
+
   // Handle the confirm leave button for the custom modal (vanilla JS to avoid jQuery dependency)
   document.addEventListener('DOMContentLoaded', function() {
     var confirmBtn = document.getElementById('confirmLeaveQso');
@@ -983,3 +1147,479 @@
     window.location.href = '<?php echo site_url('dxcluster/bandmap'); ?>';
   }
 </script>
+
+<?php if ($qso_fields['dxcluster_tab']): ?>
+<script src="<?php echo base_url(); ?>assets/js/dxcluster-utils.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  var qsoCluster = {
+    ws: null,
+    spots: new Map(),
+    workedStatus: {},
+    checkWorkedTimeout: null,
+    initialized: false,
+    hideRbn: true,
+    trackBand: false,
+    selectedBand: 'all',
+    selectedMode: 'all',
+    selectedNewDxcc: 'all',
+    dataTable: null,
+
+    init: function() {
+      if (this.initialized) return;
+      this.initialized = true;
+
+      // Load saved filter preferences (shared with main DX Cluster page)
+      var savedRbn = localStorage.getItem('cloudlog_hideRbnSpots');
+      if (savedRbn !== null) {
+        this.hideRbn = savedRbn === 'true';
+      }
+      var rbnChk = document.getElementById('qso-cluster-hide-rbn');
+      if (rbnChk) rbnChk.checked = this.hideRbn;
+
+      var savedTrack = localStorage.getItem('cloudlog_clusterTrackBand');
+      if (savedTrack !== null) {
+        this.trackBand = savedTrack === 'true';
+      }
+      var trackChk = document.getElementById('qso-cluster-track-band');
+      if (trackChk) trackChk.checked = this.trackBand;
+
+      var savedBand = localStorage.getItem('cloudlog_bandFilter');
+      if (savedBand !== null) {
+        this.selectedBand = savedBand;
+        var bandSel = document.getElementById('qso-cluster-band');
+        if (bandSel) bandSel.value = savedBand;
+      }
+
+      var savedMode = localStorage.getItem('cloudlog_modeFilter');
+      if (savedMode !== null) {
+        this.selectedMode = savedMode;
+        var modeSel = document.getElementById('qso-cluster-mode');
+        if (modeSel) modeSel.value = savedMode;
+      }
+
+      var savedNewDxcc = localStorage.getItem('cloudlog_newDxccFilter');
+      if (savedNewDxcc !== null) {
+        this.selectedNewDxcc = savedNewDxcc;
+        var newDxccSel = document.getElementById('qso-cluster-new-dxcc');
+        if (newDxccSel) newDxccSel.value = savedNewDxcc;
+      }
+
+      // Apply CW lock after all filters are restored
+      this.applyCwRbnLock();
+
+      var self = this;
+      var rbnEl = document.getElementById('qso-cluster-hide-rbn');
+      if (rbnEl) {
+        rbnEl.addEventListener('change', function(e) {
+          self.hideRbn = e.target.checked;
+          localStorage.setItem('cloudlog_hideRbnSpots', self.hideRbn.toString());
+          self.renderTable();
+        });
+      }
+
+      var bandEl = document.getElementById('qso-cluster-band');
+      if (bandEl) {
+        bandEl.addEventListener('change', function(e) {
+          // Manual band change while Track Band is on — disengage tracking
+          if (self.trackBand) {
+            self.trackBand = false;
+            var trackChk = document.getElementById('qso-cluster-track-band');
+            if (trackChk) trackChk.checked = false;
+            localStorage.setItem('cloudlog_clusterTrackBand', 'false');
+          }
+          self.selectedBand = e.target.value;
+          localStorage.setItem('cloudlog_bandFilter', self.selectedBand);
+          self.renderTable();
+        });
+      }
+
+      var modeEl = document.getElementById('qso-cluster-mode');
+      if (modeEl) {
+        modeEl.addEventListener('change', function(e) {
+          self.selectedMode = e.target.value;
+          localStorage.setItem('cloudlog_modeFilter', self.selectedMode);
+          self.applyCwRbnLock();
+          self.renderTable();
+        });
+      }
+
+      var newDxccEl = document.getElementById('qso-cluster-new-dxcc');
+      if (newDxccEl) {
+        newDxccEl.addEventListener('change', function(e) {
+          self.selectedNewDxcc = e.target.value;
+          localStorage.setItem('cloudlog_newDxccFilter', self.selectedNewDxcc);
+          self.renderTable();
+        });
+      }
+
+      var trackEl = document.getElementById('qso-cluster-track-band');
+      if (trackEl) {
+        trackEl.addEventListener('change', function(e) {
+          self.trackBand = e.target.checked;
+          localStorage.setItem('cloudlog_clusterTrackBand', self.trackBand.toString());
+          if (!self.trackBand) { self.setBandFilter('all'); }
+          else { self.syncBandFromRadio(); }
+        });
+      }
+
+      // Sync cluster band filter to follow the QSO form's band when a radio is selected
+      this.syncBandFromRadio();
+
+      // Follow band changes on the QSO form (only when a radio is active)
+      $('#band').on('change.qsoCluster', function() {
+        self.syncBandFromRadio();
+      });
+
+      // When radio selection changes, re-sync (switches to All if set to None)
+      $('#radio').on('change.qsoCluster', function() {
+        self.syncBandFromRadio();
+      });
+
+      // CAT sets #band via .val() which doesn't fire the change event,
+      // so poll every second to catch programmatic band updates
+      setInterval(function() {
+        self.syncBandFromRadio();
+      }, 1000);
+
+      // Init DataTable — dom:'t' shows only the table (no search/length/info/pagination chrome)
+      this.dataTable = $('#qso-cluster-table').DataTable({
+        dom: 'tp',
+        paging: true,
+        pageLength: 5,
+        searching: false,
+        info: false,
+        ordering: false,
+        language: { url: getDataTablesLanguageUrl(), paginate: { previous: '&lsaquo;', next: '&rsaquo;' } },
+        columns: [
+          { title: 'Time',    width: '52px'  },
+          { title: 'DX Call'                 },
+          { title: 'Freq',    width: '78px'  },
+          { title: 'Comment'                 },
+          { title: '', visible: false },   // col[4]: raw callsign for click handler
+          { title: '', visible: false },   // col[5]: raw freq MHz for click handler
+          { title: '', visible: false },   // col[6]: raw spotter for RBN detection
+          { title: '', visible: false }    // col[7]: raw comment for mode detection
+        ],
+        createdRow: function(row) {
+          $(row).css('cursor', 'pointer');
+        }
+      });
+
+      // Row click: fill callsign + frequency and trigger lookup
+      $('#qso-cluster-table tbody').on('click', 'tr', function() {
+        var data = self.dataTable.row(this).data();
+        if (!data) return;
+        var dx      = data[4];
+        var freq    = data[5];
+        var spotter = data[6];
+        var comment = data[7];
+        // Reset the form first (same as the reset button)
+        if (typeof reset_fields === 'function') { reset_fields(); }
+        // Set frequency and band
+        $('#frequency').val(freq);
+        if (typeof frequencyToBand === 'function') {
+          $('#band').val(frequencyToBand(freq));
+        }
+        // If the spot is from the RBN and comments indicate CW, set mode accordingly
+        // Don't trigger('change') — that would call band_to_freq and overwrite the spot frequency
+        if (self.isRbn(spotter) && /\bCW\b/i.test(comment)) {
+          $('#mode').val('CW');
+        }
+        // QSY the radio if one is selected (same as main DX Cluster page)
+        var radioId = $('#radio').val();
+        if (radioId && radioId !== '0') {
+          var freqMHz = (freq / 1000000).toFixed(3);
+          var qsyMode = (self.isRbn(spotter) && /\bCW\b/i.test(comment)) ? 'CW' : null;
+          var body = { radio_id: radioId, frequency: freqMHz };
+          if (qsyMode) body.mode = qsyMode;
+          fetch('<?php echo site_url('dxcluster/qsy'); ?>', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          }).catch(function() {});
+        }
+        // Set callsign and trigger lookup
+        $('#callsign').val(dx);
+        $('#callsign').focusout();
+        $('#callsign').blur();
+      });
+
+      this.connect();
+    },
+
+    connect: function() {
+      this.setStatus('Connecting...', 'warning');
+      var self = this;
+      this.ws = new WebSocket('wss://dxc.cloudlog.org');
+
+      this.ws.onopen = function() {
+        self.setStatus('Connected', 'success');
+      };
+
+      this.ws.onmessage = function(event) {
+        try {
+          var data = JSON.parse(event.data);
+          if (data.type === 'spot') {
+            self.addSpot(data);
+          }
+        } catch(e) {}
+      };
+
+      this.ws.onclose = function() {
+        self.setStatus('Reconnecting...', 'secondary');
+        setTimeout(function() { self.connect(); }, 5000);
+      };
+
+      this.ws.onerror = function() {
+        self.setStatus('Error', 'danger');
+      };
+    },
+
+    setStatus: function(text, type) {
+      var el   = document.getElementById('qso-cluster-status');
+      var icon = document.getElementById('qso-cluster-status-icon');
+      if (!el || !icon) return;
+      var stateMap = {
+        'Connected':      { icon: 'fas fa-circle',               tip: 'Connected to DX Cluster' },
+        'Connecting...':  { icon: 'fas fa-circle-notch fa-spin', tip: 'Connecting to DX Cluster...' },
+        'Reconnecting...':{ icon: 'fas fa-circle-notch fa-spin', tip: 'Reconnecting to DX Cluster...' },
+        'Error':          { icon: 'fas fa-circle-exclamation',   tip: 'DX Cluster connection error' },
+        'Disconnected':   { icon: 'fas fa-circle',               tip: 'Disconnected from DX Cluster' },
+      };
+      var state = stateMap[text] || { icon: 'fas fa-circle', tip: text };
+      el.className = 'badge bg-' + type + (type === 'warning' ? ' text-dark' : '');
+      icon.className = state.icon;
+      el.setAttribute('title', state.tip);
+      el.setAttribute('data-bs-original-title', state.tip);
+    },
+
+    addSpot: function(spot) {
+      // Deduplicate by dx+frequency key; newer spot overwrites
+      var key = spot.dx + '|' + spot.frequency;
+      spot.receivedAt = Date.now();
+      this.spots.set(key, spot);
+
+      // Prune to newest 100
+      if (this.spots.size > 100) {
+        var entries = Array.from(this.spots.entries());
+        entries.sort(function(a, b) { return a[1].receivedAt - b[1].receivedAt; });
+        this.spots.delete(entries[0][0]);
+      }
+
+      this.renderTable();
+
+      clearTimeout(this.checkWorkedTimeout);
+      var self = this;
+      this.checkWorkedTimeout = setTimeout(function() { self.checkWorkedStatus(); }, 500);
+    },
+
+    isRbn: function(spotter) {
+      return DXCluster.isRbnSpot(spotter);
+    },
+
+    detectModeFromFrequency: function(freqKhz) {
+      return DXCluster.detectModeFromFrequency(freqKhz);
+    },
+
+    detectMode: function(spot) {
+      return DXCluster.detectMode(spot);
+    },
+
+    getBand: function(freqKhz) {
+      return DXCluster.getBandFromFrequency(freqKhz);
+    },
+
+    formatTime: function(t) {
+      if (!t || t === '0' || t === 'null' || t === 'undefined') return '';
+      var s = t.toString().trim();
+      return s.endsWith('Z') ? s : s + 'Z';
+    },
+
+    calcAge: function(receivedAt) {
+      var mins = Math.floor((Date.now() - receivedAt) / 60000);
+      if (mins < 1) return 'now';
+      if (mins < 60) return mins + 'm';
+      return Math.floor(mins / 60) + 'h';
+    },
+
+    // When CW mode is active, Hide RBN must be off (most CW spots ARE RBN).
+    // Disables the checkbox so the user cannot re-hide RBN while on CW.
+    applyCwRbnLock: function() {
+      var rbn = document.getElementById('qso-cluster-hide-rbn');
+      if (!rbn) return;
+      if (this.selectedMode === 'cw') {
+        // Force off and disable
+        if (this.hideRbn) {
+          this.hideRbn = false;
+          rbn.checked = false;
+          localStorage.setItem('cloudlog_hideRbnSpots', 'false');
+        }
+        rbn.disabled = true;
+        rbn.title = 'Cannot hide RBN while CW mode is selected';
+      } else {
+        rbn.disabled = false;
+        rbn.title = '';
+      }
+    },
+
+    syncBandFromRadio: function() {
+      if (!this.trackBand) return;
+      var radioVal = $('#radio').val();
+      if (!radioVal || radioVal === '0') {
+        this.setBandFilter('all');
+        return;
+      }
+      var band = $('#band').val();
+      if (band) { this.setBandFilter(band); }
+    },
+
+    setBandFilter: function(band) {
+      if (band === this.selectedBand) return;
+      this.selectedBand = band;
+      var sel = document.getElementById('qso-cluster-band');
+      if (sel) sel.value = band;
+      localStorage.setItem('cloudlog_bandFilter', band);
+      this.renderTable();
+    },
+
+    escHtml: function(s) {
+      if (!s) return '';
+      return s.toString()
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    },
+
+    renderTable: function() {
+      if (!this.dataTable) return;
+      // Skip the DOM redraw if the tab pane is not currently visible
+      var pane = document.getElementById('dx-cluster-pane');
+      if (pane && !pane.classList.contains('active')) return;
+
+      var self = this;
+      var sorted = Array.from(this.spots.values())
+        .filter(function(s) {
+          if (self.hideRbn && self.isRbn(s.spotter)) return false;
+          if (self.selectedBand !== 'all' && self.getBand(s.frequency) !== self.selectedBand) return false;
+          if (self.selectedMode !== 'all' && self.detectMode(s) !== self.selectedMode) return false;
+          if (self.selectedNewDxcc !== 'all') {
+            var st = self.workedStatus[s.dx];
+            if (!st) return false; // Hold back until status is known
+            if (!st.dxcc) return false;
+            if (self.selectedNewDxcc === 'new_any')  return !st.dxcc_worked_overall || !st.dxcc_worked_on_band;
+            if (self.selectedNewDxcc === 'new_dxcc') return !st.dxcc_worked_overall;
+            if (self.selectedNewDxcc === 'new_band')  return st.dxcc_worked_overall && !st.dxcc_worked_on_band;
+          }
+          return true;
+        })
+        .sort(function(a, b) { return b.receivedAt - a.receivedAt; })
+        .slice(0, 50);
+
+      this.dataTable.clear();
+
+      sorted.forEach(function(spot) {
+        var status      = self.workedStatus[spot.dx];
+        var freqHz      = Math.round(parseFloat(spot.frequency) * 1000); // kHz → Hz
+        var freqDisplay = (freqHz / 1000000).toFixed(3);                 // Hz → MHz for display
+        var comment     = self.escHtml((spot.comment || '').substring(0, 35));
+        var time        = self.formatTime(spot.time);
+
+        var workedIcon = '';
+        var newBadge   = '';
+        if (status) {
+          if (status.worked_on_band) {
+            workedIcon = '<i class="fas fa-check text-success ms-1" title="Worked on band"></i>';
+          } else if (status.worked_overall) {
+            workedIcon = '<i class="fas fa-check text-info ms-1" title="Worked another band"></i>';
+          } else {
+            workedIcon = '<i class="fas fa-times text-danger ms-1" title="Not worked"></i>';
+          }
+          if (status.dxcc && !status.dxcc_worked_overall) {
+            // Never worked this DXCC entity on any band
+            newBadge = ' <span class="badge bg-danger" style="font-size:0.6rem;">New DXCC</span>';
+          } else if (status.dxcc && !status.dxcc_worked_on_band) {
+            // Worked on another band but not this one
+            newBadge = ' <span class="badge bg-warning text-dark" style="font-size:0.6rem;">New Band</span>';
+          }
+        }
+
+        self.dataTable.row.add([
+          '<span class="text-muted">' + time + '</span>',
+          '<strong>' + self.escHtml(spot.dx) + '</strong>' + workedIcon + newBadge,
+          '<span style="font-family:monospace;font-weight:600;color:#0d6efd;">' + freqDisplay + '</span>',
+          '<span class="text-muted">' + comment + '</span>',
+          spot.dx,              // hidden col[4]: raw callsign
+          freqHz,               // hidden col[5]: freq in Hz (Cloudlog standard)
+          spot.spotter || '',   // hidden col[6]: raw spotter
+          spot.comment || ''    // hidden col[7]: raw comment
+        ]);
+      });
+
+      this.dataTable.draw(false);
+    },
+
+    checkWorkedStatus: async function() {
+      var toCheck = [];
+      var seen = new Set();
+
+      for (var spot of this.spots.values()) {
+        if (this.hideRbn && this.isRbn(spot.spotter)) continue;
+        if (this.selectedBand !== 'all' && this.getBand(spot.frequency) !== this.selectedBand) continue;
+        if (this.selectedMode !== 'all' && this.detectMode(spot) !== this.selectedMode) continue;
+        if (this.workedStatus[spot.dx]) continue;
+        if (seen.has(spot.dx)) continue;
+        seen.add(spot.dx);
+        toCheck.push({ callsign: spot.dx, band: this.getBand(spot.frequency) });
+        if (toCheck.length >= 30) break;
+      }
+
+      if (!toCheck.length) return;
+
+      var self = this;
+      try {
+        var resp = await fetch('<?php echo site_url('dxcluster/check_worked'); ?>', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ callsigns: toCheck })
+        });
+        var data = await resp.json();
+        if (data.success) {
+          Object.assign(self.workedStatus, data.results);
+          self.renderTable();
+        }
+      } catch(e) {}
+    }
+  };
+
+  // Lazy init: only connect when the DX Cluster tab is first clicked
+  document.addEventListener('DOMContentLoaded', function() {
+    var tab = document.getElementById('dx-cluster-tab');
+    if (!tab) return;
+
+    tab.addEventListener('shown.bs.tab', function() {
+      if (!qsoCluster.initialized) {
+        qsoCluster.init();
+      } else {
+        // Re-render with any spots that arrived while the tab was hidden,
+        // then re-sync band filter and fix column widths
+        qsoCluster.renderTable();
+        qsoCluster.syncBandFromRadio();
+        if (qsoCluster.dataTable) { qsoCluster.dataTable.columns.adjust(); }
+      }
+    });
+
+    // Update spot ages every minute while active
+    setInterval(function() {
+      if (qsoCluster.initialized && qsoCluster.spots.size > 0) {
+        qsoCluster.renderTable();
+      }
+    }, 60000);
+  });
+
+}());
+</script>
+<?php endif; ?>
