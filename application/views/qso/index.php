@@ -26,7 +26,7 @@
     <div class="col-sm-5">
       <div class="card">
 
-        <form id="qso_input" method="post" action="<?php echo site_url('qso') . "?manual=" . $manual; ?>" name="qsos" autocomplete="off" onReset="resetTimers(<?php echo $manual; ?>);">
+        <form id="qso_input" method="post" action="<?php echo site_url('qso') . "?manual=" . $manual; ?>" data-ajax-save-url="<?php echo site_url('qso/ajax_saveqso'); ?>" name="qsos" autocomplete="off" onReset="resetTimers(<?php echo $manual; ?>);">
 
           <div class="card-header">
             <ul style="font-size: 15px;" class="nav nav-tabs card-header-tabs pull-right" id="myTab" role="tablist">
@@ -710,6 +710,8 @@
 
     <div class="col-sm-7">
 
+      <div id="notice-alerts-container">
+
       <?php if ($notice) { ?>
         <div id="notice-alerts" class="alert alert-info" role="alert">
           <?php echo $notice; ?>
@@ -721,6 +723,8 @@
           <?php echo validation_errors(); ?>
         </div>
       <?php } ?>
+
+      </div>
 
       <!-- QSO Map -->
       <div class="card qso-map">
@@ -934,12 +938,11 @@
                 <div id="qso-callhistory-results"></div>
               </div>
 
-              <div id="partial_view" style="font-size: 0.95rem;"></div>
+              <div id="partial_view" style="display: none; font-size: 0.95rem;"></div>
 
-              <div id="qso-last-table" hx-get="<?php echo site_url('/qso/component_past_contacts'); ?>" hx-trigger="load, every 5s">
+              <div id="qso-last-table" hx-get="<?php echo site_url('/qso/component_past_contacts'); ?>" hx-trigger="load">
 
               </div>
-              <small class="mt-0.5 d-block"><?php echo lang('qso_previous_max_shown'); ?></small>
             </div>
 
             <!-- DXCC Summary Tab -->
@@ -1265,15 +1268,15 @@
         });
       }
 
-      // Sync cluster band filter to follow the QSO form's band when a radio is selected
+      // Sync cluster band filter to follow the QSO form's band
       this.syncBandFromRadio();
 
-      // Follow band changes on the QSO form (only when a radio is active)
+      // Follow band changes on the QSO form
       $('#band').on('change.qsoCluster', function() {
         self.syncBandFromRadio();
       });
 
-      // When radio selection changes, re-sync (switches to All if set to None)
+      // When radio selection changes, re-sync
       $('#radio').on('change.qsoCluster', function() {
         self.syncBandFromRadio();
       });
@@ -1467,11 +1470,6 @@
 
     syncBandFromRadio: function() {
       if (!this.trackBand) return;
-      var radioVal = $('#radio').val();
-      if (!radioVal || radioVal === '0') {
-        this.setBandFilter('all');
-        return;
-      }
       var band = $('#band').val();
       if (band) { this.setBandFilter(band); }
     },

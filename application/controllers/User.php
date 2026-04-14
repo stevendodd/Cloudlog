@@ -685,6 +685,8 @@ class User extends CI_Controller
 			$data['dashboard_lotw_card'] = false;
 			$data['dashboard_vuccgrids_card'] = false;
 			$data['dashboard_map_greyline'] = true;
+			$data['menu_show_qsl_cards'] = true;
+			$data['menu_show_sstv_images'] = false;
 
 			$dashboard_options = $this->user_options_model->get_options('dashboard')->result();
 
@@ -747,6 +749,17 @@ class User extends CI_Controller
 					} else {
 						$data['dashboard_map_greyline'] = false;
 					}
+				}
+			}
+
+			$menu_options = $this->user_options_model->get_options('menu')->result();
+			foreach ($menu_options as $item) {
+				if ($item->option_name == 'show_qsl_cards' && $item->option_key == 'enabled') {
+					$data['menu_show_qsl_cards'] = ($item->option_value == 'true');
+				}
+
+				if ($item->option_name == 'show_sstv_images' && $item->option_key == 'enabled') {
+					$data['menu_show_sstv_images'] = ($item->option_value == 'true');
 				}
 			}
 
@@ -932,6 +945,22 @@ class User extends CI_Controller
 							$this->user_options_model->set_option('dashboard', 'dashboard_map_greyline', array('enabled' => 'true'));
 						} else {
 							$this->user_options_model->set_option('dashboard', 'dashboard_map_greyline', array('enabled' => 'false'));
+						}
+
+						if (isset($_POST['user_menu_show_sstv_images'])) {
+							$this->user_options_model->set_option('menu', 'show_sstv_images', array('enabled' => 'true'));
+							$this->session->set_userdata('user_show_sstv_images', true);
+						} else {
+							$this->user_options_model->set_option('menu', 'show_sstv_images', array('enabled' => 'false'));
+							$this->session->set_userdata('user_show_sstv_images', false);
+						}
+
+						if (isset($_POST['user_menu_show_qsl_cards'])) {
+							$this->user_options_model->set_option('menu', 'show_qsl_cards', array('enabled' => 'true'));
+							$this->session->set_userdata('user_show_qsl_cards', true);
+						} else {
+							$this->user_options_model->set_option('menu', 'show_qsl_cards', array('enabled' => 'false'));
+							$this->session->set_userdata('user_show_qsl_cards', false);
 						}
 
 						// [QSO Form] Save field visibility preferences

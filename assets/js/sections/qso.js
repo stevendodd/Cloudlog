@@ -1,5 +1,12 @@
 var lastCallsignUpdated=""
 var callsignLookupRequestId = 0;
+var callsignDxccQuickRequestId = 0;
+var callsignDxccQuickTimer = null;
+var isSubmitting = false;
+var lastResetCatSyncNoticeAt = 0;
+var suppressNextResetHandler = false;
+var previousContactsLookupMode = false;
+var htmxAutoRefreshTimer = null;
 
 function hasFieldValue(value) {
 	return value !== null && value !== undefined && String(value).trim() !== "";
@@ -7,6 +14,42 @@ function hasFieldValue(value) {
 
 function normalizeFieldValue(value) {
 	return String(value ?? "").trim();
+}
+
+function escapeNoticeValue(value) {
+	return String(value || '').replace(/[&<>"']/g, function(char) {
+		var escapes = {
+			'&': '&amp;',
+			'<': '&lt;',
+			'>': '&gt;',
+			'"': '&quot;',
+			"'": '&#39;'
+		};
+		return escapes[char] || char;
+	});
+}
+
+function showQsoNotice(message, alertType) {
+	var safeType = alertType || 'info';
+	var $container = $('#notice-alerts-container');
+	if ($container.length === 0) {
+		$container = $('<div id="notice-alerts-container"></div>');
+		var $rightColumn = $('.col-sm-7').first();
+		var $mapCard = $rightColumn.find('.qso-map').first();
+		if ($mapCard.length > 0) {
+			$container.insertBefore($mapCard);
+		} else if ($rightColumn.length > 0) {
+			$rightColumn.prepend($container);
+		}
+	}
+
+	$container.html('<div id="notice-alerts" class="alert alert-' + safeType + '" role="alert">' + message + '</div>');
+
+	setTimeout(function() {
+		$('#notice-alerts').fadeOut(300, function() {
+			$(this).remove();
+		});
+	}, 5000);
 }
 
 function shouldReplaceLookupField($field, incomingValue, fieldKey, approval) {
@@ -541,11 +584,11 @@ var favs={};
 	});
 
 	// Test Consistency value on submit form //
-	var isSubmitting = false;
 	$("#qso_input").off('submit').on('submit', function(e){
+		e.preventDefault();
+
 		// Prevent double submission
 		if (isSubmitting) {
-			e.preventDefault();
 			return false;
 		}
 		
@@ -557,6 +600,10 @@ var favs={};
 		if (_submit) {
 			// Mark as submitting and disable the submit button
 			isSubmitting = true;
+			$('#qso_input .warningOnSubmit').hide();
+			$('#qso_input .warningOnSubmit_txt').empty();
+
+			var $form = $(this);
 			var submitBtn = $(this).find('button[type="submit"]');
 			var originalText = submitBtn.data('original-text');
 			if (!originalText) {
@@ -566,9 +613,88 @@ var favs={};
 			}
 			submitBtn.prop('disabled', true);
 			submitBtn.html('<i class="fas fa-spinner fa-spin"></i> Saving...');
+
+			var ajaxSaveUrl = $form.data('ajax-save-url') || (base_url + 'index.php/qso/ajax_saveqso');
+
+			$.ajax({
+				url: ajaxSaveUrl,
+				type: 'POST',
+				data: $form.serialize(),
+				dataType: 'json',
+				success: function(response) {
+					if (response && response.status === 'ok') {
+						var savedCallsign = normalizeFieldValue($('#callsign').val()).toUpperCase();
+						var savedBand = normalizeFieldValue($('#band').val());
+						var savedMode = normalizeFieldValue($('#mode').val());
+						var savedSatName = normalizeFieldValue($('#sat_name').val());
+						var savedSatMode = normalizeFieldValue($('#sat_mode').val());
+						var postSaveDefaults = {
+							band: savedBand,
+							mode: savedMode,
+							sat_name: savedSatName,
+							sat_mode: savedSatMode
+						};
+						var saveMessage = (response && response.message) ? response.message : 'QSO Added';
+						if (savedCallsign && savedBand) {
+							saveMessage += ': <strong>' + escapeNoticeValue(savedCallsign) + ' on ' + escapeNoticeValue(savedBand) + '</strong>';
+						} else if (savedCallsign) {
+							saveMessage += ': <strong>' + escapeNoticeValue(savedCallsign) + '</strong>';
+						} else if (savedBand) {
+							saveMessage += ': <strong>on ' + escapeNoticeValue(savedBand) + '</strong>';
+						}
+
+						var qsoFormElement = document.getElementById('qso_input');
+						if (qsoFormElement) {
+							suppressNextResetHandler = true;
+							qsoFormElement.reset();
+						}
+
+						reset_fields();
+						if (document.getElementById('qsp-tab')) {
+							new bootstrap.Tab(document.getElementById('qsp-tab')).show();
+						}
+						reapplyPostSaveDefaults(postSaveDefaults);
+						showQsoNotice(saveMessage, 'info');
+
+						if (typeof htmx !== 'undefined' && document.getElementById('qso-last-table')) {
+							htmx.ajax('GET', base_url + 'index.php/qso/component_past_contacts', {
+								target: '#qso-last-table',
+								swap: 'innerHTML'
+							});
+						}
+
+						$('#callsign').focus();
+						$('#qso_input').data('initialForm', $('#qso_input').serialize());
+					} else {
+						var warningMessage = (response && response.message) ? response.message : 'Unable to save QSO. Please try again.';
+
+						if (response && response.validation_errors) {
+							var validationMessages = [];
+							$.each(response.validation_errors, function(_, msg) {
+								if (msg) {
+									validationMessages.push(msg);
+								}
+							});
+							if (validationMessages.length > 0) {
+								warningMessage = validationMessages.join('<br>');
+							}
+						}
+
+						$('#qso_input .warningOnSubmit_txt').html(warningMessage);
+						$('#qso_input .warningOnSubmit').show();
+					}
+				},
+				error: function() {
+					$('#qso_input .warningOnSubmit_txt').html('Unable to save QSO due to a network or server error.');
+					$('#qso_input .warningOnSubmit').show();
+				},
+				complete: function() {
+					resetSubmissionState();
+				}
+			});
 		}
 		
-		return _submit;
+		return false;
 	})
 	
 	// Prevent Enter key from causing double submissions
@@ -730,10 +856,47 @@ function resetSubmissionState() {
 	}
 }
 
+function resetCallsignLookupState() {
+	lastCallsignUpdated = '';
+	// Invalidate in-flight responses from older callsign lookups.
+	callsignLookupRequestId++;
+	callsignDxccQuickRequestId++;
+	if (callsignDxccQuickTimer) {
+		clearTimeout(callsignDxccQuickTimer);
+		callsignDxccQuickTimer = null;
+	}
+}
+
+function isLookupStillCurrent(requestId, find_callsign) {
+	if (requestId !== callsignLookupRequestId) {
+		return false;
+	}
+
+	var currentCallsign = $('#callsign').val().toUpperCase().replace(/\//g, "-").replace('Ø', '0');
+	return currentCallsign === find_callsign;
+}
+
+function clearSatelliteFields() {
+	$('#sat_name').val('');
+	$('#sat_mode').val('');
+	$('.satellite_modes_list').find('option').remove().end();
+	selected_sat = '';
+	selected_sat_mode = '';
+
+	if ($('#selectPropagation').val() === 'SAT') {
+		$('#selectPropagation').val('');
+	}
+}
+
+function clearCatTrackedFieldState() {
+	$('#frequency, #frequency_rx, #sat_name, #sat_mode, #transmit_power, #selectPropagation, #mode').removeData('catValue');
+}
+
 /* Function: reset_fields is used to reset the fields on the QSO page */
 function reset_fields() {
 	// Reset submission state
 	resetSubmissionState();
+	resetCallsignLookupState();
 
 	$('#locator_info').text("");
 	$('#country').val("");
@@ -745,13 +908,17 @@ function reset_fields() {
 	$('#qrz_info').text("");
 	$('#hamqth_info').text("");
 	$('#sota_info').text("");
+	$('#wwff_info').html('').attr('title', '');
+	$('#pota_info').html('').attr('title', '');
 	$('#dxcc_id').val("").trigger('change');
 	$('#cqz').val("");
 	$('#name').val("");
 	$('#qth').val("");
 	$('#locator').val("");
 	$('#iota_ref').val("");
-	$('#sota_ref').val("");
+	$select = $('#sota_ref').selectize();
+	selectize = $select[0] ? $select[0].selectize : null;
+	if (selectize) selectize.clear();
 	$("#locator").removeClass("confirmedGrid");
 	$("#locator").removeClass("workedGrid");
 	$("#locator").removeClass("newGrid");
@@ -767,7 +934,10 @@ function reset_fields() {
 	$('#callsign_info').text("");
 	$('#input_usa_state').val("");
 	$('#qso-last-table').show();
+	$('#partial_view').html('');
 	$('#partial_view').hide();
+	previousContactsLookupMode = false;
+	resumeAutoRefresh();
 	var $select = $('#wwff_ref').selectize();
 	var selectize = $select[0] ? $select[0].selectize : null;
 	if (selectize) selectize.clear();
@@ -781,12 +951,46 @@ function reset_fields() {
 	selectize = $select[0] ? $select[0].selectize : null;
 	if (selectize) selectize.clear();
 
+	clearSatelliteFields();
+	clearCatTrackedFieldState();
+
 	mymap.setView(pos, 12);
 	mymap.removeLayer(markers);
 	$('.callsign-suggest').hide();
 	$('.dxccsummary').remove();
 	$('#timesWorked').html(lang_qso_title_previous_contacts);
 	renderQsoCallhistoryPanel([], 'Type a callsign to see membership details from your uploaded call history files.');
+
+	// Reapply default RST values for the current mode (e.g., CW => 599).
+	if (typeof setRst === 'function') {
+		setRst($('.mode').val());
+	}
+}
+
+function reapplyPostSaveDefaults(defaults) {
+	if (!defaults) {
+		return;
+	}
+
+	if (typeof defaults.band !== 'undefined') {
+		$('#band').val(defaults.band);
+	}
+
+	if (typeof defaults.mode !== 'undefined') {
+		$('#mode').val(defaults.mode);
+	}
+
+	if (typeof defaults.sat_name !== 'undefined') {
+		$('#sat_name').val(defaults.sat_name);
+	}
+
+	if (typeof defaults.sat_mode !== 'undefined') {
+		$('#sat_mode').val(defaults.sat_mode);
+	}
+
+	if (typeof setRst === 'function') {
+		setRst($('#mode').val());
+	}
 }
 
 function resetTimers(manual) {
@@ -830,7 +1034,7 @@ $("#callsign").focusout(function() {
 		// Replace / in a callsign with - to stop urls breaking
 		$.getJSON(base_url + 'index.php/logbook/json/' + find_callsign + '/' + sat_type + '/' + json_band + '/' + json_mode + '/' + $('#stationProfile').val(), function(result)
 		{
-			if (requestId !== callsignLookupRequestId) {
+			if (!isLookupStillCurrent(requestId, find_callsign)) {
 				return;
 			}
 
@@ -838,62 +1042,36 @@ $("#callsign").focusout(function() {
 			var currentCallsign = $('#callsign').val().toUpperCase().replace(/\//g, "-").replace('Ø', '0');
 			if(currentCallsign === find_callsign) {
 
-				// Reset QSO fields
-				resetDefaultQSOFields();
+			// Enter lookup mode - pause auto-refresh of logbook pagination
+			previousContactsLookupMode = true;
+			pauseAutoRefresh();
 
-				if(result.dxcc.entity != undefined) {
-					$('#country').val(convert_case(result.dxcc.entity));
-					$('#callsign_info').text(convert_case(result.dxcc.entity));
+			// Reset QSO fields but keep current DXCC badge/country to avoid flicker.
+			resetDefaultQSOFields(true);
 
-					if($("#sat_name" ).val() != "") {
-						//logbook/jsonlookupgrid/io77/SAT/0/0
-						$.getJSON(base_url + 'index.php/logbook/jsonlookupcallsign/' + find_callsign + '/SAT/0/0', function(result)
-						{
-							// Reset CSS values before updating
-							$('#callsign').removeClass("workedGrid");
-							$('#callsign').removeClass("confirmedGrid");
-							$('#callsign').removeClass("newGrid");
-							$('#callsign').attr('title', '');
+			if(result.dxcc.entity != undefined) {
+				$('#country').val(convert_case(result.dxcc.entity));
+				$('#callsign_info').text(convert_case(result.dxcc.entity));
 
-							if (result.confirmed) {
-								$('#callsign').addClass("confirmedGrid");
-								$('#callsign').attr('title', 'Callsign was already worked and confirmed in the past on this band and mode!');
-							} else if (result.workedBefore) {
-								$('#callsign').addClass("workedGrid");
-								$('#callsign').attr('title', 'Callsign was already worked in the past on this band and mode!');
-							}
-							else
-							{
-								$('#callsign').addClass("newGrid");
-								$('#callsign').attr('title', 'New Callsign!');
-							}
-						})
-					} else {
-						$.getJSON(base_url + 'index.php/logbook/jsonlookupcallsign/' + find_callsign + '/0/' + $("#band").val() +'/' + $("#mode").val(), function(result)
-						{
-							// Reset CSS values before updating
-							$('#callsign').removeClass("confirmedGrid");
-							$('#callsign').removeClass("workedGrid");
-							$('#callsign').removeClass("newGrid");
-							$('#callsign').attr('title', '');
+				// Reset CSS values before updating
+				$('#callsign').removeClass("confirmedGrid");
+				$('#callsign').removeClass("workedGrid");
+				$('#callsign').removeClass("newGrid");
+				$('#callsign').attr('title', '');
 
-							if (result.confirmed) {
-								$('#callsign').addClass("confirmedGrid");
-								$('#callsign').attr('title', 'Callsign was already worked and confirmed in the past on this band and mode!');
-							} else if (result.workedBefore) {
-								$('#callsign').addClass("workedGrid");
-								$('#callsign').attr('title', 'Callsign was already worked in the past on this band and mode!');
-							} else {
-								$('#callsign').addClass("newGrid");
-								$('#callsign').attr('title', 'New Callsign!');
-							}
-
-						})
-					}
-
-					changebadge(result.dxcc.entity);
-
+				if (result.callsignConfirmed || result.confirmed) {
+					$('#callsign').addClass("confirmedGrid");
+					$('#callsign').attr('title', 'Callsign was already worked and confirmed in the past on this band and mode!');
+				} else if (result.callsignWorkedBefore) {
+					$('#callsign').addClass("workedGrid");
+					$('#callsign').attr('title', 'Callsign was already worked in the past on this band and mode!');
+				} else {
+					$('#callsign').addClass("newGrid");
+					$('#callsign').attr('title', 'New Callsign!');
 				}
+
+				changebadge(result.dxcc.entity);
+			}
 
 				if(result.lotw_member == "active") {
 					$('#lotw_info').text("LoTW");
@@ -920,6 +1098,9 @@ $("#callsign").focusout(function() {
 				var dok_selectize = $dok_select[0] ? $dok_select[0].selectize : null;
 				if (result.dxcc.adif == '230') {
 					$.get(base_url + 'index.php/lookup/dok/' + $('#callsign').val().toUpperCase(), function(result) {
+						if (!isLookupStillCurrent(requestId, find_callsign)) {
+							return;
+						}
 						if (result && dok_selectize) {
 							dok_selectize.addOption({name: result});
 							dok_selectize.setValue(result, false);
@@ -929,7 +1110,7 @@ $("#callsign").focusout(function() {
 					if (dok_selectize) dok_selectize.clear();
 				}
 
-				$('#dxcc_id').val(result.dxcc.adif).trigger('change');
+				$('#dxcc_id').val(result.dxcc.adif);
 				$('#cqz').val(result.dxcc.cqz);
 				$('#ituz').val(result.dxcc.ituz);
 
@@ -956,7 +1137,7 @@ $("#callsign").focusout(function() {
 
 				var overwriteConflicts = getLookupOverwriteConflicts(result);
 				showLookupOverwriteModal(overwriteConflicts).then(function(approval) {
-					if (requestId !== callsignLookupRequestId) {
+					if (!isLookupStillCurrent(requestId, find_callsign)) {
 						return;
 					}
 
@@ -1013,12 +1194,22 @@ $("#callsign").focusout(function() {
 				if($('#iota_ref').val() == "") {
 					$('#iota_ref').val(result.callsign_iota);
 				}
-				// Hide the last QSO table
-				$('#qso-last-table').hide();
-				$('#partial_view').show();
 				/* display past QSOs */
-				$('#partial_view').html(result.partial);
-
+				var partialHtml = (typeof result.partial === 'string') ? result.partial : '';
+				
+				if (partialHtml.trim() !== '') {
+					// State 2: Callsign found in log with past QSOs
+					$('#partial_view').html(partialHtml);
+					setPreviousContactsPanelState(true);
+				} else {
+					// State 3: Callsign found but NO past QSOs in database
+					var noQsoMsg = '<div class="alert alert-info small mb-2">'
+						+ '<i class="fa fa-info-circle me-2"></i>'
+						+ 'No past QSOs with <strong>' + escapeNoticeValue(find_callsign) + '</strong>&mdash;see callbook details above.'
+						+ '</div>';
+					$('#partial_view').html(noQsoMsg);
+					setPreviousContactsPanelState(true);
+				}
 				// Get DXX Summary
 				getDxccResult(result.dxcc.adif, convert_case(result.dxcc.entity));
 			}
@@ -1031,6 +1222,43 @@ $("#callsign").focusout(function() {
 	}
 })
 
+function pauseAutoRefresh() {
+	if (typeof htmx !== 'undefined' && document.getElementById('qso-last-table-content')) {
+		var elem = document.getElementById('qso-last-table-content');
+		if (elem) {
+			elem.removeAttribute('hx-trigger');
+		}
+	}
+}
+
+function resumeAutoRefresh() {
+	if (typeof htmx !== 'undefined' && document.getElementById('qso-last-table-content')) {
+		var elem = document.getElementById('qso-last-table-content');
+		if (elem) {
+			elem.setAttribute('hx-trigger', 'every 5s');
+			htmx.process(elem);
+		}
+	}
+}
+
+function setPreviousContactsPanelState(showLookupDetails) {
+	if (showLookupDetails) {
+		// Show callsign-specific results (either QSOs found or "not found" message)
+		$('#qso-last-table').hide();
+		$('#qso-last-table').next('small').hide();
+		$('#partial_view').show();
+		previousContactsLookupMode = true;
+		return;
+	}
+
+	// Show paginated logbook (no callsign lookup active)
+	$('#qso-last-table').show();
+	$('#qso-last-table').next('small').show();
+	$('#partial_view').html('');
+	$('#partial_view').hide();
+	previousContactsLookupMode = false;
+}
+
 // Function to reset back to Previous Contacts tab
 function resetToPreviousContactsTab() {
 	// Clear DXCC Summary tab content
@@ -1040,15 +1268,66 @@ function resetToPreviousContactsTab() {
 		var previousContactsTab = new bootstrap.Tab(document.getElementById('previous-contacts-tab'));
 		previousContactsTab.show();
 	}
-	// Show the previous contacts table
-	$('#qso-last-table').show();
-	$('#partial_view').hide();
+	// Show the default previous contacts table and hide lookup details.
+	setPreviousContactsPanelState(false);
+}
+
+// Re-apply visibility state after HTMX updates the previous contacts markup.
+if (typeof htmx !== 'undefined' && document.body) {
+	document.body.addEventListener('htmx:afterSwap', function(evt) {
+		var detail = evt && evt.detail ? evt.detail : null;
+		var target = detail && detail.target ? detail.target : null;
+		if (!target) {
+			return;
+		}
+
+		if (target.id !== 'qso-last-table' && target.id !== 'qso-last-table-content') {
+			return;
+		}
+
+		// If we're in lookup mode, keep showing the partial_view (callsign-specific results)
+		// If we're not in lookup mode, show the main pagination table
+		if (previousContactsLookupMode) {
+			setPreviousContactsPanelState(true);
+		} else if ($('#partial_view').html().trim() !== '') {
+			setPreviousContactsPanelState(true);
+		}
+	});
+}
+
+// If a radio is selected, prefer current CAT values over stale form defaults.
+function syncFromSelectedRadioAfterReset() {
+	var selectedRadioID = String($('select.radios option:selected').val() || '0');
+	if (selectedRadioID === '0') {
+		return false;
+	}
+
+	if (typeof updateFromCAT === 'function') {
+		var now = Date.now();
+		if (now - lastResetCatSyncNoticeAt > 1000) {
+			showQsoNotice('Form reset. Syncing live data from selected radio.', 'info');
+			lastResetCatSyncNoticeAt = now;
+		}
+		updateFromCAT(selectedRadioID);
+		return true;
+	}
+
+	return false;
 }
 
 // Reset to Previous Contacts tab when form is reset
 $('#qso_input').on('reset', function() {
+	resetCallsignLookupState();
+
+	if (suppressNextResetHandler) {
+		suppressNextResetHandler = false;
+		return;
+	}
+
 	setTimeout(function() {
+		reset_fields();
 		resetToPreviousContactsTab();
+		syncFromSelectedRadioAfterReset();
 	}, 100);
 });
 
@@ -1058,11 +1337,36 @@ function resetQsoEntryOnEscape() {
 		return;
 	}
 
+	// Capture the operating context the user currently has selected BEFORE native
+	// form reset clobbers it with server-session defaults (last logged QSO values).
+	var preBand     = $('#band').val();
+	var preMode     = $('#mode').val();
+	var preSatName  = $('#sat_name').val();
+	var preSatMode  = $('#sat_mode').val();
+	var prePropMode = $('#selectPropagation').val();
+
 	qsoForm.reset();
-	lastCallsignUpdated = '';
+	resetCallsignLookupState();
 	resetDefaultQSOFields();
 	resetToPreviousContactsTab();
 	$('#callsign').trigger('focus');
+
+	// The on('reset') handler runs reset_fields() + clearSatelliteFields() in 100ms.
+	// Re-apply the captured context afterwards so the user stays on the band/mode/
+	// satellite they had selected, not the one from the previous QSO session.
+	setTimeout(function() {
+		$('#band').val(preBand);
+		$('#mode').val(preMode);
+		if (preSatName) {
+			$('#sat_name').val(preSatName);
+			$('#sat_mode').val(preSatMode);
+			$('#selectPropagation').val(prePropMode || 'SAT');
+		}
+		if (typeof setRst === 'function') {
+			setRst($('#mode').val());
+		}
+		syncFromSelectedRadioAfterReset();
+	}, 150);
 }
 
 // Global ESC handling on the QSO page: reset form, return to Previous Contacts, and focus callsign.
@@ -1087,7 +1391,7 @@ $(document).off('keydown.qsoEscapeReset').on('keydown.qsoEscapeReset', function(
 // Also handle when callsign is cleared (empty value entered)
 $('#callsign').on('input keyup', function() {
 	if ($(this).val() === '' && lastCallsignUpdated !== '') {
-		lastCallsignUpdated = '';
+		resetCallsignLookupState();
 		resetDefaultQSOFields();
 		resetToPreviousContactsTab();
 	}
@@ -1392,8 +1696,48 @@ $("#callsign").on("keypress", function(e) {
 	}
 });
 
+function quickLookupDxcc(callsign) {
+	if (!callsign || callsign.length < 3) {
+		return;
+	}
+
+	var requestId = ++callsignDxccQuickRequestId;
+	var find_callsign = callsign.toUpperCase().replace(/\//g, "-").replace('Ø', '0');
+
+	$.getJSON(base_url + 'index.php/logbook/jsondxcc/' + find_callsign, function(result) {
+		if (requestId !== callsignDxccQuickRequestId) {
+			return;
+		}
+
+		var currentCallsign = $('#callsign').val().toUpperCase().replace(/\//g, "-").replace('Ø', '0');
+		if (currentCallsign !== find_callsign) {
+			return;
+		}
+
+		if (result.dxcc && result.dxcc.entity !== undefined) {
+			$('#country').val(convert_case(result.dxcc.entity));
+			$('#callsign_info').text(convert_case(result.dxcc.entity));
+			changebadge(result.dxcc.entity);
+			$('#dxcc_id').val(result.dxcc.adif);
+			$('#cqz').val(result.dxcc.cqz);
+			$('#ituz').val(result.dxcc.ituz);
+		}
+	});
+}
+
 // On Key up check and suggest callsigns
 $("#callsign").keyup(function() {
+	if (callsignDxccQuickTimer) {
+		clearTimeout(callsignDxccQuickTimer);
+	}
+
+	var currentCall = $(this).val();
+	if (currentCall.length >= 3) {
+		callsignDxccQuickTimer = setTimeout(function() {
+			quickLookupDxcc(currentCall);
+		}, 200);
+	}
+
 	if ($(this).val().length >= 3) {
 	  $('.callsign-suggest').show();
 	  $callsign = $(this).val().replace('Ø', '0');
@@ -1414,7 +1758,26 @@ $("#callsign").keyup(function() {
   });
 
 //Reset QSO form Fields function
-function resetDefaultQSOFields() {
+function resetDefaultQSOFields(preserveDxccState) {
+	var keepDxcc = preserveDxccState === true;
+	var preservedCountry = '';
+	var preservedCallsignInfoText = '';
+	var preservedCallsignInfoTitle = '';
+	var preservedCallsignInfoClass = '';
+	var preservedDxccId = '';
+	var preservedCqz = '';
+	var preservedItuz = '';
+
+	if (keepDxcc) {
+		preservedCountry = $('#country').val();
+		preservedCallsignInfoText = $('#callsign_info').text();
+		preservedCallsignInfoTitle = $('#callsign_info').attr('title') || '';
+		preservedCallsignInfoClass = $('#callsign_info').attr('class') || '';
+		preservedDxccId = $('#dxcc_id').val();
+		preservedCqz = $('#cqz').val();
+		preservedItuz = $('#ituz').val();
+	}
+
 	$('#callsign_info').text("");
 	$('#locator_info').text("");
 	$('#country').val("");
@@ -1427,6 +1790,7 @@ function resetDefaultQSOFields() {
 	$('#hamqth_info').text("");
 	$('#dxcc_id').val("").trigger('change');
 	$('#cqz').val("");
+	$('#ituz').val("");
 	$("#locator").removeClass("workedGrid");
 	$("#locator").removeClass("confirmedGrid");
 	$("#locator").removeClass("newGrid");
@@ -1440,6 +1804,16 @@ function resetDefaultQSOFields() {
 	$('#callsign-image-content').text("");
 	$('.dxccsummary').remove();
 	$('#timesWorked').html(lang_qso_title_previous_contacts);
+
+	if (keepDxcc) {
+		$('#country').val(preservedCountry);
+		$('#callsign_info').text(preservedCallsignInfoText);
+		$('#callsign_info').attr('title', preservedCallsignInfoTitle);
+		$('#callsign_info').attr('class', preservedCallsignInfoClass);
+		$('#dxcc_id').val(preservedDxccId);
+		$('#cqz').val(preservedCqz);
+		$('#ituz').val(preservedItuz);
+	}
 }
 
 function closeModal() {
