@@ -31,6 +31,14 @@
 			</div>
 		<?php } ?>
 
+		<?php if (!empty($clublog_cron_station_warning)) { ?>
+			<div class="alert alert-warning" role="alert">
+				<span class="badge text-bg-info"><?php echo lang('general_word_important'); ?></span>
+				Clublog credentials are configured, but no Station Location has Upload to Clublog enabled.
+				<a href="<?php echo site_url('station'); ?>">Enable at least one Station Location</a> to upload via /clublog/upload.
+			</div>
+		<?php } ?>
+
 		<?php if ($this->optionslib->get_option('dashboard_banner') != "false") { ?>
 			<div id="todays_qso_component" hx-get="<?php echo site_url('dashboard/todays_qso_component'); ?>" hx-trigger="load, every 60s [!document.hidden]" data-updated-target="#todays-qso-last-updated" data-updated-wrap-target="#todays-qso-last-updated-wrap" hx-indicator="#todays-qso-loading">
 				<?php if ($todays_qsos >= 1) { ?>
@@ -42,6 +50,9 @@
 						<span class="badge text-bg-info"><?php echo lang('general_word_important'); ?></span> <i class="fas fa-broadcast-tower"></i> <?php echo lang('notice_turn_the_radio_on'); ?>
 					</div>
 				<?php } ?>
+			</div>
+			<div class="small text-muted mb-2 d-none d-lg-block">
+				<span id="todays-qso-loading" class="htmx-indicator ms-2"><i class="fas fa-spinner fa-spin"></i> Updating...</span>
 			</div>
 		<?php } ?>
 
