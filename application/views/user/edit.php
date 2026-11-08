@@ -1145,7 +1145,7 @@
 											<div class="mb-3">
 												<label>Callbook Provider</label>
 												<select class="form-control" name="user_callbook_type">
-													<option value="None" <?php if (isset($user_callbook_type) && $user_callbook_type == 'None') echo 'selected'; ?>>None</option>
+													<option value="None" <?php if (!isset($user_callbook_type) || $user_callbook_type == '' || $user_callbook_type == 'None') echo 'selected'; ?>>None</option>
 													<option value="QRZ" <?php if (isset($user_callbook_type) && $user_callbook_type == 'QRZ') echo 'selected'; ?>>QRZ</option>
 													<option value="HamQTH" <?php if (isset($user_callbook_type) && $user_callbook_type == 'HamQTH') echo 'selected'; ?>>HamQTH</option>
 												</select>
@@ -1287,7 +1287,7 @@
 										<div class="card-header"><?php echo lang('account_amsat_status_upload'); ?></div>
 										<div class="card-body">
 											<div class="mb-3">
-												<label for="amsatsatatusupload"><?php echo lang('account_upload_status_of_sat_qsos_to'); ?> <a href="https://www.amsat.org/status/" target="_blank">https://www.amsat.org/status/</a>.</label>
+												<label for="amsatsatatusupload"><?php echo lang('account_upload_status_of_sat_qsos_to'); ?> <a href="https://status.amsat.org/" target="_blank">https://status.amsat.org/</a>.</label>
 												<?php if (!isset($user_amsat_status_upload)) {
 													$user_amsat_status_upload = '0';
 												} ?>

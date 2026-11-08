@@ -1226,97 +1226,363 @@ class Logbook_model extends CI_Model
 
   function upload_amsat_status($data)
   {
-    $sat_name = '';
-    if ($data['COL_SAT_NAME'] == 'AO-7') {
-      if ($data['COL_BAND'] == '2m' && $data['COL_BAND_RX'] == '10m') {
-        $sat_name = 'AO-7_[V/a]';
-      }
-      if ($data['COL_BAND'] == '70cm' && $data['COL_BAND_RX'] == '2m') {
-        $sat_name = 'AO-7_[U/v]';
-      }
-    } else if ($data['COL_SAT_NAME'] == 'SO-50') {
-      $sat_name = 'SO-50_[FM]';
-    } else if ($data['COL_SAT_NAME'] == 'SO-125') {
-      $sat_name = 'SO-125_[FM]';
-    } else if ($data['COL_SAT_NAME'] == 'RS-44') {
-      $sat_name = 'RS-44_[V/u]';
-    } else if ($data['COL_SAT_NAME'] == 'NO-44') {
-      $sat_name = 'NO-44_[APRS]';
-    } else if ($data['COL_SAT_NAME'] == 'JO-97') {
-      $sat_name = 'JO-97_[U/v]';
-    } else if ($data['COL_SAT_NAME'] == 'FO-29') {
-      $sat_name = 'FO-29_[V/u]';
-    } else if( $data['COL_SAT_NAME'] == 'AO-91') {
-        $sat_name = 'AO-91_[FM]';
-    } else if ($data['COL_SAT_NAME'] == 'AO-123') {
-        $sat_name = 'AO-123_[FM]';
-    } else if ($data['COL_SAT_NAME'] == 'AO-73') {
-        $sat_name = 'AO-73_[U/v]';
-    } else if ($data['COL_SAT_NAME'] == 'MESAT-1') {
-      $sat_name = 'MESAT1';
-    } else if ($data['COL_SAT_NAME'] == 'SONATE-2') {
-      $sat_name = 'SONATE-2 APRS';
-    } else if ($data['COL_SAT_NAME'] == 'QMR-KWT-2') {
-      $sat_name = 'RS95S_[FM]';
-    } else if ($data['COL_SAT_NAME'] == 'Lobachevsky') {
-      $sat_name = 'RS83S_[FM]';
-    } else if ($data['COL_SAT_NAME'] == 'BOTAN') {
-      if ($data['COL_MODE'] == 'PKT') {
-        $sat_name = 'BOTAN APRS';
-      }
-    } else if ($data['COL_SAT_NAME'] == 'SONATE-2') {
-      if ($data['COL_MODE'] == 'PKT') {
-        $sat_name = 'SONATE-2_[APRS]';
-      }
-    } else if ($data['COL_SAT_NAME'] == 'QO-100') {
-      $sat_name = 'QO-100_[NB]';
-    } else if ($data['COL_SAT_NAME'] == 'AO-92') {
-      if ($data['COL_BAND'] == '70cm' && $data['COL_BAND_RX'] == '2m') {
-        $sat_name = 'AO-92_U/v';
-      }
-      if ($data['COL_BAND'] == '23cm' && $data['COL_BAND_RX'] == '2m') {
-        $sat_name = 'AO-92_L/v';
-      }
-    } else if ($data['COL_SAT_NAME'] == 'AO-95') {
-      if ($data['COL_BAND'] == '70cm' && $data['COL_BAND_RX'] == '2m') {
-        $sat_name = 'AO-95_U/v';
-      }
-      if ($data['COL_BAND'] == '23cm' && $data['COL_BAND_RX'] == '2m') {
-        $sat_name = 'AO-95_L/v';
-      }
-    } else if ($data['COL_SAT_NAME'] == 'PO-101') {
-      if ($data['COL_MODE'] == 'PKT') {
-        $sat_name = 'PO-101_[APRS]';
-      } else {
-        $sat_name = 'PO-101_[FM]';
-      }
-    } else if ($data['COL_SAT_NAME'] == 'FO-118') {
-      if ($data['COL_BAND'] == '2m') {
-        if ($data['COL_MODE'] == 'FM') {
-          $sat_name = 'FO-118[V/u FM]';
-        } else if ($data['COL_MODE'] == 'SSB') {
-          $sat_name = 'FO-118[V/u]';
-        }
-      } else if ($data['COL_BAND'] == '15m') {
-        $sat_name = 'FO-118[H/u]';
-      }
-    } else if ($data['COL_SAT_NAME'] == 'ARISS' || $data['COL_SAT_NAME'] == 'ISS') {
-      if ($data['COL_MODE'] == 'FM') {
-        $sat_name = 'ISS_[FM]';
-      } else if ($data['COL_MODE'] == 'PKT') {
-        $sat_name = 'ISS_[APRS]';
-      }
-    } else if ($data['COL_SAT_NAME'] == 'CAS-3H') {
-      $sat_name = 'CAS-3H_[FM]';
-    } else {
-      $sat_name = $data['COL_SAT_NAME'];
+    $satellite = trim((string)($data['COL_SAT_NAME'] ?? ''));
+    if ($satellite === '') {
+      return;
     }
-    $datearray = date_parse_from_format("Y-m-d H:i:s", $data['COL_TIME_ON']);
-    $url = 'https://amsat.org/status/submit.php?SatSubmit=yes&Confirm=yes&SatName=' . $sat_name . '&SatYear=' . $datearray['year'] . '&SatMonth=' . str_pad($datearray['month'], 2, '0', STR_PAD_LEFT) . '&SatDay=' . str_pad($datearray['day'], 2, '0', STR_PAD_LEFT) . '&SatHour=' . str_pad($datearray['hour'], 2, '0', STR_PAD_LEFT) . '&SatPeriod=' . (intdiv(($datearray['minute'] - 1), 15)) . '&SatCall=' . $data['COL_STATION_CALLSIGN'] . '&SatReport=Heard&SatGridSquare=' . $data['COL_MY_GRIDSQUARE'];
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $url);
+
+    // POST /api/v1/reports.php stores this value as the report name and the
+    // status grid joins it to satellite_name.html_element_name.
+    $api_name = $this->amsat_status_api_name($data);
+    $used_raw_satellite_name = ($api_name === '');
+    $sat_name = $used_raw_satellite_name ? $satellite : $api_name;
+
+    $callsign = strtoupper(trim((string)($data['COL_STATION_CALLSIGN'] ?? '')));
+    if ($callsign === '') {
+      log_message('error', 'AMSAT status upload skipped: missing station callsign for ' . $satellite);
+      return;
+    }
+
+    $observed_at = (string)($data['COL_TIME_ON'] ?? '');
+    if ($observed_at === '') {
+      return;
+    }
+
+    try {
+      $observed_dt = new DateTime($observed_at, new DateTimeZone('UTC'));
+      $reported_at = $observed_dt->format('Y-m-d\\TH:i:s\\Z');
+    } catch (Exception $e) {
+      log_message('error', 'AMSAT status upload skipped: invalid time for ' . $satellite . ' - ' . $e->getMessage());
+      return;
+    }
+
+    $payload = array(
+      'name' => $sat_name,
+      'report' => 'Heard',
+      'callsign' => $callsign,
+      'reported_at' => $reported_at,
+    );
+
+    $gridsquare = $this->amsat_status_grid($data);
+    if ($gridsquare !== '') {
+      $payload['grid_square'] = $gridsquare;
+    }
+
+    $this->load->helper('useragent');
+    $user_agent = cloudlog_user_agent() . ' (+https://github.com/magicbug/Cloudlog)';
+    $body = json_encode($payload);
+    $errors = array();
+
+    $endpoints = $this->amsat_status_endpoints();
+    foreach ($endpoints as $index => $url) {
+      $started_at = microtime(true);
+      $result = $this->amsat_status_post($url, $body, $user_agent);
+      if ($result['ok']) {
+        return;
+      }
+      $errors[] = $result['error'];
+      if (empty($result['retry'])) {
+        break;
+      }
+      if ($used_raw_satellite_name && ($result['error_code'] ?? '') === 'unknown_satellite') {
+        log_message('info', 'AMSAT status upload stopped: unknown satellite for raw name ' . $sat_name);
+        return;
+      }
+      if ($index >= count($endpoints) - 1) {
+        break;
+      }
+      $elapsed = microtime(true) - $started_at;
+      if ($elapsed >= 2.0 && empty($result['connect_failed'])) {
+        break;
+      }
+    }
+
+    log_message('error', 'AMSAT status upload failed for ' . $sat_name . ': ' . implode(' | ', $errors));
+  }
+
+  /**
+   * Current host until the announced cutover, then https://status.amsat.org.
+   * The other host is only a fallback while the catalog is moving.
+   *
+   * @return array<int, string>
+   */
+  private function amsat_status_endpoints()
+  {
+    $new_api = 'https://status.amsat.org/api/v1/reports.php';
+    $current_api = 'https://www.amsat.org/status/api/v1/reports.php';
+
+    try {
+      $now = new DateTime('now', new DateTimeZone('UTC'));
+      $cutover = new DateTime('2026-11-04 14:00:00', new DateTimeZone('UTC'));
+    } catch (Exception $e) {
+      return array($new_api);
+    }
+
+    if ($now >= $cutover) {
+      return array($new_api, $current_api);
+    }
+
+    return array($current_api, $new_api);
+  }
+
+  /**
+   * @return array{ok: bool, retry: bool, connect_failed: bool, error_code: string, error: string}
+   */
+  private function amsat_status_post($url, $body, $user_agent)
+  {
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_exec($ch);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 4);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+    curl_setopt($ch, CURLOPT_USERAGENT, $user_agent);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+      'Accept: application/json',
+      'Content-Type: application/json',
+    ));
+
+    $response = curl_exec($ch);
+    if (curl_errno($ch)) {
+      $errno = curl_errno($ch);
+      $error = curl_error($ch);
+      curl_close($ch);
+      $connect_failed = in_array($errno, array(CURLE_COULDNT_CONNECT, CURLE_COULDNT_RESOLVE_HOST, CURLE_COULDNT_RESOLVE_PROXY), true);
+      return array(
+        'ok' => false,
+        'retry' => true,
+        'connect_failed' => $connect_failed,
+        'error_code' => '',
+        'error' => $url . ' curl: ' . $error,
+      );
+    }
+
+    $http_code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($http_code === 200 || $http_code === 201) {
+      return array('ok' => true, 'retry' => false, 'connect_failed' => false, 'error_code' => '', 'error' => '');
+    }
+
+    $retry = ($http_code === 404 || $http_code === 408 || $http_code === 429 || $http_code >= 500 || ($http_code >= 300 && $http_code < 400));
+    $error_code = '';
+    $decoded = json_decode((string)$response, true);
+    if (is_array($decoded) && isset($decoded['error']['code'])) {
+      $error_code = (string)$decoded['error']['code'];
+      if ($error_code === 'unknown_satellite') {
+        // Empty catalog during the host move, or a name the other host still lists.
+        $retry = true;
+      }
+    }
+
+    $detail = 'HTTP ' . $http_code;
+    if ($error_code !== '') {
+      $detail .= ' ' . $error_code;
+    }
+    if (is_string($response) && $response !== '') {
+      $detail .= ' ' . substr($response, 0, 300);
+    }
+
+    return array(
+      'ok' => false,
+      'retry' => $retry,
+      'connect_failed' => false,
+      'error_code' => $error_code,
+      'error' => $url . ' ' . $detail,
+    );
+  }
+
+  private function amsat_status_grid($data)
+  {
+    $gridsquare = strtoupper(trim((string)($data['COL_MY_GRIDSQUARE'] ?? '')));
+    if ($gridsquare === '' && !empty($data['COL_MY_VUCC_GRIDS'])) {
+      $parts = explode(',', (string)$data['COL_MY_VUCC_GRIDS']);
+      $gridsquare = strtoupper(trim((string)($parts[0] ?? '')));
+    }
+
+    $gridsquare = preg_replace('/[^A-Z0-9]/', '', $gridsquare);
+    if (!is_string($gridsquare) || preg_match('/^[A-R]{2}[0-9]{2}([A-X]{2})?$/', $gridsquare) !== 1) {
+      return '';
+    }
+
+    return $gridsquare;
+  }
+
+  /**
+   * AMSAT API name (satellite_name.html_element_name), not the LoTW name.
+   */
+  private function amsat_status_api_name($data)
+  {
+    $satellite = strtoupper(trim((string)($data['COL_SAT_NAME'] ?? '')));
+    $mode = strtoupper(trim((string)($data['COL_MODE'] ?? '')));
+    $sat_mode = strtoupper(str_replace(' ', '', (string)($data['COL_SAT_MODE'] ?? '')));
+    $band = strtolower(trim((string)($data['COL_BAND'] ?? '')));
+    $band_rx = strtolower(trim((string)($data['COL_BAND_RX'] ?? '')));
+
+    if ($satellite === '') {
+      return '';
+    }
+
+    $raw = trim((string)($data['COL_SAT_NAME'] ?? ''));
+    if (preg_match('/_\[[^]]+\]$/', $raw) === 1) {
+      return $raw;
+    }
+
+    if ($satellite === 'AO-7' || $satellite === 'AO-07') {
+      if (($band === '2m' && $band_rx === '10m') || $sat_mode === 'V/A' || $sat_mode === 'VA') {
+        return 'AO-7_[V/a]';
+      }
+      if (($band === '70cm' && $band_rx === '2m') || $sat_mode === 'U/V' || $sat_mode === 'UV') {
+        return 'AO-7_[U/v]';
+      }
+      return '';
+    }
+
+    if ($satellite === 'ISS' || $satellite === 'ARISS') {
+      if ($mode === 'SSTV' || $sat_mode === 'SSTV') {
+        return 'ISS_[SSTV]';
+      }
+      if ($mode === 'DATV' || $sat_mode === 'DATV') {
+        return 'ISS_[DATV]';
+      }
+      if ($mode === 'PKT' || $mode === 'APRS' || $sat_mode === 'PKT' || $sat_mode === 'APRS') {
+        if ($band === '70cm' || $band_rx === '70cm' || $sat_mode === 'U') {
+          return 'ISS_[UHF_Digi]';
+        }
+        return 'ISS_[VHF_Digi]';
+      }
+      if ($mode === 'FM' || $sat_mode === 'FM' || $sat_mode === 'V/U' || $sat_mode === 'U/V') {
+        return 'ISS_[FM]';
+      }
+      return '';
+    }
+
+    if ($satellite === 'AO-123') {
+      if ($mode === 'SSTV' || $mode === 'SSDV' || $sat_mode === 'SSDV' || $sat_mode === 'SSTV') {
+        return 'AO-123_[SSDV]';
+      }
+      return 'AO-123_[FM]';
+    }
+
+    if ($satellite === 'IO-86') {
+      if ($mode === 'SSTV' || $sat_mode === 'SSTV') {
+        return 'IO-86_[SSTV]';
+      }
+      if ($mode === 'SSDV' || $sat_mode === 'SSDV') {
+        return 'IO-86_[SSDV]';
+      }
+      if ($mode === 'PKT' || $sat_mode === 'PKT' || $sat_mode === 'APRS') {
+        return 'IO-86_[VHF_Digi]';
+      }
+      return 'IO-86_[FM]';
+    }
+
+    if ($satellite === 'QO-100') {
+      if ($mode === 'DATV' || $sat_mode === 'WB' || $sat_mode === 'DATV') {
+        return 'QO-100_[WB]';
+      }
+      return 'QO-100_[NB]';
+    }
+
+    if ($satellite === 'SONATE-2') {
+      if ($mode === 'SSTV' || $sat_mode === 'SSTV') {
+        return 'SONATE-2_[SSTV]';
+      }
+      if ($mode === 'PKT' || $sat_mode === 'PKT' || $sat_mode === 'APRS') {
+        return 'SONATE-2_[VHF_Digi]';
+      }
+      return '';
+    }
+
+    if ($satellite === 'QMR-KWT-2' || $satellite === 'RS95S') {
+      if ($mode === 'SSTV' || $sat_mode === 'SSTV') {
+        return 'RS95S_[SSTV]';
+      }
+      return 'RS95S_[FM]';
+    }
+
+    if ($satellite === 'LOBACHEVSKY' || $satellite === 'RS83S') {
+      if ($mode === 'SSTV' || $sat_mode === 'SSTV') {
+        return 'RS83S_[SSTV]';
+      }
+      if ($mode === 'SSDV' || $sat_mode === 'SSDV') {
+        return 'RS83S_[SSDV]';
+      }
+      return 'RS83S_[FM]';
+    }
+
+    if ($satellite === 'PO-101') {
+      if ($mode === 'PKT' || $mode === 'APRS' || $sat_mode === 'PKT' || $sat_mode === 'APRS') {
+        return 'PO-101_[APRS]';
+      }
+      return 'PO-101_[FM]';
+    }
+
+    if ($satellite === 'MESAT-1' || $satellite === 'MESAT1') {
+      return 'MESAT1';
+    }
+
+    if ($satellite === 'BOTAN') {
+      if ($mode === 'PKT' || $sat_mode === 'PKT' || $sat_mode === 'APRS') {
+        return 'BOTAN APRS';
+      }
+      return '';
+    }
+
+    if ($satellite === 'FO-118') {
+      if ($band === '2m') {
+        if ($mode === 'FM') {
+          return 'FO-118[V/u FM]';
+        }
+        if ($mode === 'SSB') {
+          return 'FO-118[V/u]';
+        }
+      }
+      if ($band === '15m') {
+        return 'FO-118[H/u]';
+      }
+      return '';
+    }
+
+    if ($satellite === 'AO-92') {
+      if ($band === '70cm' && $band_rx === '2m') {
+        return 'AO-92_U/v';
+      }
+      if ($band === '23cm' && $band_rx === '2m') {
+        return 'AO-92_L/v';
+      }
+      return '';
+    }
+
+    if ($satellite === 'AO-95') {
+      if ($band === '70cm' && $band_rx === '2m') {
+        return 'AO-95_U/v';
+      }
+      if ($band === '23cm' && $band_rx === '2m') {
+        return 'AO-95_L/v';
+      }
+      return '';
+    }
+
+    $single = array(
+      'SO-50' => 'SO-50_[FM]',
+      'SO-125' => 'SO-125_[FM]',
+      'RS-44' => 'RS-44_[V/u]',
+      'NO-44' => 'NO-44_[VHF_Digi]',
+      'JO-97' => 'JO-97_[U/v]',
+      'FO-29' => 'FO-29_[V/u]',
+      'AO-91' => 'AO-91_[FM]',
+      'AO-73' => 'AO-73_[U/v]',
+      'CAS-3H' => 'CAS-3H_[FM]',
+      'TO-108' => 'TO-108_[U/v]',
+    );
+
+    if (isset($single[$satellite])) {
+      return $single[$satellite];
+    }
+
+    return '';
   }
 
   function upload_oscarwatch_status($data)
@@ -1802,6 +2068,7 @@ class Logbook_model extends CI_Model
       'COL_QSL_RCVD' => "Y"
     );
 
+    $this->scopeQsosToUser($this->session->userdata('user_id'));
     $this->db->where('COL_PRIMARY_KEY', $this->input->post('id'));
     $this->db->update($this->config->item('table_name'), $data);
   }
@@ -1841,11 +2108,55 @@ class Logbook_model extends CI_Model
     }
   }
 
-  function last_custom_paginated($limit = 6, $offset = 0)
+  /**
+   * Station locations for dashboard / previous-contacts lists.
+   * Active logbook relationships, plus the active station and any extra
+   * station currently selected for logging (so SOTA/portable QSOs still appear
+   * even if that location was not linked to the logbook yet).
+   */
+  private function locations_for_recent_qsos($extra_station_id = null)
   {
     $CI = &get_instance();
     $CI->load->model('logbooks_model');
-    $logbooks_locations_array = $CI->logbooks_model->list_logbook_relationships($this->session->userdata('active_station_logbook'));
+    $CI->load->model('stations');
+
+    $locations = $CI->logbooks_model->list_logbook_relationships($this->session->userdata('active_station_logbook'));
+    if (!is_array($locations)) {
+      $locations = array();
+    }
+
+    $candidates = array();
+    $active = $CI->stations->find_active();
+    if (!empty($active) && $active !== '0') {
+      $candidates[] = $active;
+    }
+    if (!empty($extra_station_id) && $extra_station_id !== '0') {
+      $candidates[] = $extra_station_id;
+    }
+
+    foreach ($candidates as $station_id) {
+      $station_id = (int) $station_id;
+      if ($station_id <= 0) {
+        continue;
+      }
+      $already_included = false;
+      foreach ($locations as $existing) {
+        if ((int) $existing === $station_id) {
+          $already_included = true;
+          break;
+        }
+      }
+      if (!$already_included && $CI->stations->check_station_is_accessible($station_id)) {
+        $locations[] = $station_id;
+      }
+    }
+
+    return $locations;
+  }
+
+  function last_custom_paginated($limit = 6, $offset = 0, $extra_station_id = null)
+  {
+    $logbooks_locations_array = $this->locations_for_recent_qsos($extra_station_id);
 
     if (!empty($logbooks_locations_array)) {
       $this->db->select('COL_CALL, COL_BAND, COL_FREQ, COL_TIME_ON, COL_RST_RCVD, COL_RST_SENT, COL_MODE, COL_SUBMODE, COL_NAME, COL_COUNTRY, COL_DXCC, COL_PRIMARY_KEY, COL_SAT_NAME, COL_SRX, COL_SRX_STRING, COL_STX, COL_STX_STRING, COL_VUCC_GRIDS, COL_GRIDSQUARE, COL_MY_GRIDSQUARE, COL_MY_VUCC_GRIDS, COL_OPERATOR, COL_IOTA, COL_WWFF_REF, COL_POTA_REF, COL_STATE, COL_CNTY, COL_DISTANCE, COL_SOTA_REF, COL_CONTEST_ID, dxcc_entities.end AS end, dxcc_entities.lat AS dxcc_lat, dxcc_entities.`long` AS dxcc_long', false);
@@ -1860,11 +2171,9 @@ class Logbook_model extends CI_Model
     }
   }
 
-  function last_custom_count()
+  function last_custom_count($extra_station_id = null)
   {
-    $CI = &get_instance();
-    $CI->load->model('logbooks_model');
-    $logbooks_locations_array = $CI->logbooks_model->list_logbook_relationships($this->session->userdata('active_station_logbook'));
+    $logbooks_locations_array = $this->locations_for_recent_qsos($extra_station_id);
 
     if (!empty($logbooks_locations_array)) {
       $this->db->select('COUNT(*) as count');
@@ -2161,49 +2470,50 @@ class Logbook_model extends CI_Model
   }
 
 
+  // Owner-only write scope; matches Logbookadvanced_model::scopeQsosToUser() and bulk QSL updates in #3477.
+  private function scopeQsosToUser($user_id)
+  {
+    $this->db->where("station_id IN (SELECT station_id FROM station_profile WHERE user_id = " . $this->db->escape($user_id) . ")", null, false);
+  }
+
   // Set Paper to received
   function paperqsl_update($qso_id, $method)
   {
-    if ($this->logbook_model->check_qso_is_writable($qso_id)) {
+    $data = array(
+      'COL_QSLRDATE' => date('Y-m-d H:i:s'),
+      'COL_QSL_RCVD' => 'Y',
+      'COL_QSL_RCVD_VIA' => $method
+    );
 
-      $data = array(
-        'COL_QSLRDATE' => date('Y-m-d H:i:s'),
-        'COL_QSL_RCVD' => 'Y',
-        'COL_QSL_RCVD_VIA' => $method
-      );
+    $this->scopeQsosToUser($this->session->userdata('user_id'));
+    $this->db->where('COL_PRIMARY_KEY', $qso_id);
+    $this->db->update($this->config->item('table_name'), $data);
 
-      $this->db->where('COL_PRIMARY_KEY', $qso_id);
-
-      $this->db->update($this->config->item('table_name'), $data);
-    } else {
-      return;
-    }
+    return $this->db->affected_rows() > 0;
   }
 
 
   // Set Paper to sent
   function paperqsl_update_sent($qso_id, $method)
   {
-    if ($this->logbook_model->check_qso_is_writable($qso_id)) {
-      if ($method != '') {
-        $data = array(
-          'COL_QSLSDATE' => date('Y-m-d H:i:s'),
-          'COL_QSL_SENT' => 'Y',
-          'COL_QSL_SENT_VIA' => $method
-        );
-      } else {
-        $data = array(
-          'COL_QSLSDATE' => date('Y-m-d H:i:s'),
-          'COL_QSL_SENT' => 'Y'
-        );
-      }
-
-      $this->db->where('COL_PRIMARY_KEY', $qso_id);
-
-      $this->db->update($this->config->item('table_name'), $data);
+    if ($method != '') {
+      $data = array(
+        'COL_QSLSDATE' => date('Y-m-d H:i:s'),
+        'COL_QSL_SENT' => 'Y',
+        'COL_QSL_SENT_VIA' => $method
+      );
     } else {
-      return;
+      $data = array(
+        'COL_QSLSDATE' => date('Y-m-d H:i:s'),
+        'COL_QSL_SENT' => 'Y'
+      );
     }
+
+    $this->scopeQsosToUser($this->session->userdata('user_id'));
+    $this->db->where('COL_PRIMARY_KEY', $qso_id);
+    $this->db->update($this->config->item('table_name'), $data);
+
+    return $this->db->affected_rows() > 0;
   }
 
 
@@ -2530,9 +2840,7 @@ class Logbook_model extends CI_Model
     $num = intval($num);
     
     if ($StationLocationsArray == null) {
-      $CI = &get_instance();
-      $CI->load->model('logbooks_model');
-      $logbooks_locations_array = $CI->logbooks_model->list_logbook_relationships($this->session->userdata('active_station_logbook'));
+      $logbooks_locations_array = $this->locations_for_recent_qsos();
     } else {
       $logbooks_locations_array = $StationLocationsArray;
     }
@@ -2743,6 +3051,10 @@ class Logbook_model extends CI_Model
     $CI = &get_instance();
     $CI->load->model('logbooks_model');
     $logbooks_locations_array = $CI->logbooks_model->list_logbook_relationships($this->session->userdata('active_station_logbook'));
+
+    if (!$logbooks_locations_array) {
+      return null;
+    }
 
     $this->db->select('COL_CALL, COL_BAND, COL_TIME_ON, COL_RST_RCVD, COL_RST_SENT, COL_MODE, COL_SUBMODE, COL_NAME, COL_COUNTRY, COL_PRIMARY_KEY, COL_SAT_NAME, COL_GRIDSQUARE');
     $this->db->where_in('station_id', $logbooks_locations_array);
@@ -3876,12 +4188,21 @@ class Logbook_model extends CI_Model
   {
     if ($this->check_qso_is_accessible($id)) {
       // Get station_id before deleting for cache clearing
-      $this->db->select('station_id');
+      $this->db->select('station_id, COL_CALL, COL_TIME_ON, COL_BAND, COL_MODE, COL_SUBMODE');
       $this->db->where('COL_PRIMARY_KEY', $id);
       $qso_query = $this->db->get($this->config->item('table_name'));
       $station_id = null;
       if ($qso_query->num_rows() > 0) {
-        $station_id = $qso_query->row()->station_id;
+        $qso_row = $qso_query->row_array();
+        $station_id = $qso_row['station_id'];
+
+        $this->load->library('cloudlog_hooks');
+        $this->cloudlog_hooks->do_action('qso.action.before_delete', array(
+          'qso_id' => (int)$id,
+          'qso' => $qso_row,
+        ), array(
+          'station_id' => $station_id,
+        ));
       }
       
       // Delete the QSO
@@ -4301,7 +4622,7 @@ class Logbook_model extends CI_Model
 
     if ((!$skipStationCheck) && ($station_id != 0) && (strtoupper($record['station_callsign']) != strtoupper($station_profile_call))) {     // Check if station_call from import matches profile ONLY when submitting via GUI.
       return "Wrong station callsign <b>\"" . htmlentities($record['station_callsign']) . "\"</b> while importing QSO with " . $record['call'] . " for <b>" . $station_profile_call . "</b> : SKIPPED" .
-        "<br>See the <a target=\"_blank\" href=\"https://github.com/magicbug/Cloudlog/wiki/ADIF-file-can't-be-imported\">Cloudlog Wiki</a> for hints about errors in ADIF files.";
+        "<br>See the <a target=\"_blank\" href=\"https://docs.cloudlog.org/guide/adif/\">Cloudlog documentation</a> for hints about errors in ADIF files.";
     }
 
     $this->load->library('frequency');
@@ -5685,19 +6006,27 @@ class Logbook_model extends CI_Model
 
         if (!$this->session->userdata('qrz_session_key')) {
           $qrz_session_key = $this->qrz->session($this->session->userdata('callbook_username'), $decrypted_password);
-          $this->session->set_userdata('qrz_session_key', $qrz_session_key);
+          if ($qrz_session_key !== '') {
+            $this->session->set_userdata('qrz_session_key', $qrz_session_key);
+          }
         }
 
-        $callbook = $this->qrz->search($callsign, $this->session->userdata('qrz_session_key'), $use_fullname);
+        if ($this->session->userdata('qrz_session_key')) {
+          $callbook = $this->qrz->search($callsign, $this->session->userdata('qrz_session_key'), $use_fullname);
+        } else {
+          $callbook = array('error' => 'request_failed');
+        }
 
         // if we got nothing, it's probably because our session key is invalid, try again
-        if (($callbook['callsign'] ?? '') == '') {
+        if (!$this->qrz->request_failed($callbook) && ($callbook['callsign'] ?? '') == '') {
           $qrz_session_key = $this->qrz->session($this->session->userdata('callbook_username'), $decrypted_password);
-          $this->session->set_userdata('qrz_session_key', $qrz_session_key);
-          $callbook = $this->qrz->search($callsign, $this->session->userdata('qrz_session_key'), $use_fullname);
-          // if we still got nothing, and it's a compound callsign, then try a search for the base call
-          if (($callbook['callsign'] ?? '') == '' && strpos($callsign, "/") !== false) {
-            $callbook = $this->qrz->search($this->get_plaincall($callsign), $this->session->userdata('qrz_session_key'), $use_fullname);
+          if ($qrz_session_key !== '') {
+            $this->session->set_userdata('qrz_session_key', $qrz_session_key);
+            $callbook = $this->qrz->search($callsign, $this->session->userdata('qrz_session_key'), $use_fullname);
+            // if we still got nothing, and it's a compound callsign, then try a search for the base call
+            if (!$this->qrz->request_failed($callbook) && ($callbook['callsign'] ?? '') == '' && strpos($callsign, "/") !== false) {
+              $callbook = $this->qrz->search($this->get_plaincall($callsign), $this->session->userdata('qrz_session_key'), $use_fullname);
+            }
           }
         }
       }
@@ -5714,16 +6043,24 @@ class Logbook_model extends CI_Model
 
         if (!$this->session->userdata('hamqth_session_key')) {
           $hamqth_session_key = $this->hamqth->session($this->session->userdata('callbook_username'), $decrypted_password);
-          $this->session->set_userdata('hamqth_session_key', $hamqth_session_key);
+          if ($hamqth_session_key !== '') {
+            $this->session->set_userdata('hamqth_session_key', $hamqth_session_key);
+          }
         }
 
-        $callbook = $this->hamqth->search($callsign, $this->session->userdata('hamqth_session_key'));
+        if ($this->session->userdata('hamqth_session_key')) {
+          $callbook = $this->hamqth->search($callsign, $this->session->userdata('hamqth_session_key'));
+        } else {
+          $callbook = array('error' => 'request_failed');
+        }
 
         // If HamQTH session has expired, start a new session and retry the search.
-        if ($callbook['error'] == "Session does not exist or expired") {
+        if (is_array($callbook) && ($callbook['error'] ?? '') == "Session does not exist or expired") {
           $hamqth_session_key = $this->hamqth->session($this->session->userdata('callbook_username'), $decrypted_password);
-          $this->session->set_userdata('hamqth_session_key', $hamqth_session_key);
-          $callbook = $this->hamqth->search($callsign, $this->session->userdata('hamqth_session_key'));
+          if ($hamqth_session_key !== '') {
+            $this->session->set_userdata('hamqth_session_key', $hamqth_session_key);
+            $callbook = $this->hamqth->search($callsign, $this->session->userdata('hamqth_session_key'));
+          }
         }
       }
     } finally {
@@ -5893,18 +6230,18 @@ class Logbook_model extends CI_Model
     return $affected_rows;
   }
 
-  function county_qso_details($state, $county)
+  /*
+   * QSOs in a state whose logged county (text after the state prefix, lower case) is one of $county_names.
+   */
+  function county_qso_details($state, $county_names)
   {
     $CI = &get_instance();
     $CI->load->model('logbooks_model');
+    $CI->load->model('counties');
     $logbooks_locations_array = $CI->logbooks_model->list_logbook_relationships($this->session->userdata('active_station_logbook'));
 
-    $normalizedCounty = strtolower(trim((string)$county));
     $normalizedState = strtoupper(trim((string)$state));
-    $normalizedStateExpression = "UPPER(TRIM(CASE WHEN COALESCE(COL_STATE, '') <> '' THEN COL_STATE WHEN COL_CNTY REGEXP '^[A-Za-z]{2},' THEN SUBSTRING_INDEX(COL_CNTY, ',', 1) ELSE '' END))";
-    if (preg_match('/^[A-Za-z]{2},\s*/', $normalizedCounty)) {
-      $normalizedCounty = preg_replace('/^[A-Za-z]{2},\s*/', '', $normalizedCounty);
-    }
+    $countyList = empty($county_names) ? "''" : implode(',', array_map(array($this->db, 'escape'), $county_names));
 
     $this->db->select($this->config->item('table_name') . '.*');
     $this->db->select('station_profile.*');
@@ -5914,9 +6251,11 @@ class Logbook_model extends CI_Model
     $this->db->join('dxcc_entities', 'dxcc_entities.adif = ' . $this->config->item('table_name') . '.COL_DXCC', 'left outer');
     $this->db->join('lotw_users lotw', 'lotw.callsign = ' . $this->config->item('table_name') . '.col_call', 'left');
     $this->db->where_in($this->config->item('table_name') . '.station_id', $logbooks_locations_array);
-    $this->db->where($normalizedStateExpression . ' = ' . $this->db->escape($normalizedState), null, false);
-    $this->db->where("LOWER(TRIM(SUBSTRING_INDEX(COL_CNTY, ',', -1))) = " . $this->db->escape($normalizedCounty), null, false);
+    $this->db->where(Counties::STATE_EXPRESSION . ' = ' . $this->db->escape($normalizedState), null, false);
+    $this->db->where('LOWER(' . Counties::COUNTY_EXPRESSION . ') IN (' . $countyList . ')', null, false);
+    $this->db->where_in('COL_DXCC', array('291', '6', '110'));
     $this->db->where('COL_BAND !=', 'SAT');
+    $this->db->where("COALESCE(COL_PROP_MODE, '') != 'SAT'", null, false);
 
     return $this->db->get($this->config->item('table_name'));
   }
@@ -6285,20 +6624,67 @@ class Logbook_model extends CI_Model
       }
     }
 
-    // Try to parse with the user's format first
+    // Try to parse with the user's format first.
+    // A 2-digit year cannot represent 1967: PHP reads 67 as 2067. A typed
+    // 4-digit year is honoured even when the account format uses `y`.
     $date = DateTime::createFromFormat($user_format, $date_input);
+    $two_digit_year = false;
     if ($date !== false) {
+      $two_digit_year = strpos($user_format, 'y') !== false;
+    } elseif (strpos($user_format, 'y') !== false && preg_match('/\d{4}/', $date_input)) {
+      $date = DateTime::createFromFormat(str_replace('y', 'Y', $user_format), $date_input);
+    }
+
+    if ($date === false) {
+      // Fallback to strtotime for formats it can handle (mostly Y-m-d, m/d/Y, etc.)
+      $timestamp = strtotime($date_input);
+      if ($timestamp === false) {
+        return $date_input;
+      }
+      $normalized = date('Y-m-d', $timestamp);
+      if (!preg_match('/\d{4}/', $date_input)) {
+        $normalized = $this->roll_back_implausible_future_year($normalized);
+      }
+      return $normalized;
+    }
+
+    $normalized = $date->format('Y-m-d');
+    if ($two_digit_year) {
+      $normalized = $this->roll_back_implausible_future_year($normalized);
+    }
+    return $normalized;
+  }
+
+  /**
+   * Two-digit years 00-69 parse as 2000-2069. A log date more than a year
+   * ahead is the previous century (07/05/67 is 1967, not 2067).
+   */
+  private function roll_back_implausible_future_year($ymd)
+  {
+    $date = DateTime::createFromFormat('Y-m-d', $ymd);
+    if ($date === false) {
+      return $ymd;
+    }
+    $limit = new DateTime('today');
+    $limit->modify('+1 year');
+    if ($date > $limit) {
+      $date->modify('-100 years');
       return $date->format('Y-m-d');
     }
+    return $ymd;
+  }
 
-    // Fallback to strtotime for formats it can handle (mostly Y-m-d, m/d/Y, etc.)
-    $timestamp = strtotime($date_input);
-    if ($timestamp !== false) {
-      return date('Y-m-d', $timestamp);
+  /**
+   * QSO date from the logging form, normalised to Y-m-d for DXCC lookups.
+   * Falls back to today when the input cannot be parsed.
+   */
+  public function normalize_qso_date($date_input)
+  {
+    $parsed = $this->parse_user_date($date_input);
+    if (is_string($parsed) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $parsed)) {
+      return $parsed;
     }
-
-    // If all parsing fails, return the original input and let the database handle it
-    return $date_input;
+    return date('Y-m-d');
   }
 
   /* Consolidated QSO Statistics - Get all basic counts in a single query */

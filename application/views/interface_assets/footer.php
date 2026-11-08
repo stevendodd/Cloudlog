@@ -1275,9 +1275,9 @@ $(document).ready(function() {
         }
 
         function buildSearchResultUrl(callsign, exactMatch) {
-            var url = "logbook/search_result/" + encodeURI(callsign.replace(/Ø/g, '0'));
+            var url = "<?php echo site_url('logbook/search_result'); ?>?callsign=" + encodeURIComponent(callsign.replace(/Ø/g, '0'));
             if (exactMatch) {
-                url += '?exact=1';
+                url += '&exact=1';
             }
             return url;
         }
@@ -2222,7 +2222,7 @@ $(document).ready(function() {
     </script>
 
     <script type="text/javascript">
-        var manual = <?php echo $_GET['manual']; ?>;
+        var manual = <?php echo (int) ($_GET['manual'] ?? 0); ?>;
 
         $(document).ready(function() {
 
@@ -2470,6 +2470,17 @@ $(document).ready(function() {
             });
             // [eQSL default msg] change value on change station profle //
             qso_set_eqsl_qslmsg(stationProfile, false, '.qso_panel');
+
+            if (typeof htmx !== 'undefined' && document.getElementById('qso-last-table')) {
+                var pastContactsUrl = base_url + 'index.php/qso/component_past_contacts';
+                if (stationProfile) {
+                    pastContactsUrl += '?station_id=' + encodeURIComponent(stationProfile);
+                }
+                htmx.ajax('GET', pastContactsUrl, {
+                    target: '#qso-last-table',
+                    swap: 'innerHTML'
+                });
+            }
         });
         // [eQSL default msg] change value on clic //
         $('.qso_panel .qso_eqsl_qslmsg_update').off('click').on('click', function() {
@@ -4947,7 +4958,7 @@ $(document).ready(function() {
 </script>
 <?php if ($this->uri->segment(1) == "contesting" && ($this->uri->segment(2) != "add" && $this->uri->segment(2) != "edit")) { ?>
     <script>
-        var manual = <?php echo $_GET['manual']; ?>;
+        var manual = <?php echo (int) ($_GET['manual'] ?? 0); ?>;
     </script>
     <script src="<?php echo base_url(); ?>assets/js/sections/contesting.js?v2"></script>
 <?php } ?>
